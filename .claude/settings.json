@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -fsSL \"https://api.github.com/repos/rojo-rbx/rokit/releases/latest\")",
+      "Bash(mkdir -p src/shared src/server src/client Packages)",
+      "Bash(touch Packages/.gitkeep)",
+      "Bash(curl -fsSL \"https://api.github.com/repos/MadStudioRoblox/ProfileStore\")",
+      "Bash(curl -fsSL \"https://api.github.com/repos/MadStudioRoblox/ProfileStore/contents\")",
+      "Bash(curl -fsSL -o src/server/ProfileStore.luau \"https://raw.githubusercontent.com/MadStudioRoblox/ProfileStore/main/ProfileStore.luau\")",
+      "Bash(lsof -nP -iTCP:34872 -sTCP:LISTEN)",
+      "Bash(lsof -nP -iTCP:34873 -sTCP:LISTEN)",
+      "Bash(chmod +x scripts/check.sh)",
+      "Bash(./scripts/check.sh)",
+      "Bash(python3 -)",
+      "Bash(xargs -n1 basename)",
+      "Bash(sed -n '/local function buildCrowd/,/^end/p' src/server/World.luau)",
+      "Bash(sed -n '/^function World.buildArenaTemplate/,/return arena/p' src/server/World.luau)",
+      "Bash(PATH=/Users/admin/.rokit/bin:__TRACKED_VAR__ ./scripts/check.sh)",
+      "Bash(PATH=/Users/admin/.rokit/bin:__TRACKED_VAR__ stylua src/)",
+      "Bash(PATH=/Users/admin/.rokit/bin:__TRACKED_VAR__ rojo build -o PenaltyKings.rbxlx)",
+      "WebFetch(domain:en.wikipedia.org)",
+      "WebFetch(domain:www.espn.com)",
+      "Bash(grep -n \"^local function pressable\\\\|^end$\" src/client/UI.luau)",
+      "Bash(perl -0pi -e 's/shopPanel\\\\.Visible = true/showPanel\\(shopPanel\\)/g; s/boardPanel\\\\.Visible = true/showPanel\\(boardPanel\\)/g; s/challengePanel\\\\.Visible = true/showPanel\\(challengePanel\\)/g; s/fixturesPanel\\\\.Visible = true/showPanel\\(fixturesPanel\\)/g; s/storePanel\\\\.Visible = true/showPanel\\(storePanel\\)/g' src/client/UI.luau)",
+      "Bash(gh auth *)",
+      "Bash(git config *)",
+      "Bash(git remote *)",
+      "Bash(git ls-remote *)",
+      "Bash(git checkout *)"
+    ]
+  }
+}

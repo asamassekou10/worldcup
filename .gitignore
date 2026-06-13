@@ -1,0 +1,16 @@
+# Wally packages (the lockfile is committed; the installed tree is not)
+/Packages/
+!/Packages/.gitkeep
+
+# Generated place files & Rojo output
+*.rbxl
+*.rbxlx
+*.rbxl.lock
+*.rbxlx.lock
+/sourcemap.json
+
+# luau-lsp type-check inputs (generated/fetched by scripts/check.sh)
+/globalTypes.d.luau
+
+# macOS
+.DS_Store

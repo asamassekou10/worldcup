@@ -1,0 +1,27 @@
+{
+	"name": "PenaltyKings",
+	"globIgnorePaths": ["**/.DS_Store"],
+	"tree": {
+		"$className": "DataModel",
+		"ReplicatedStorage": {
+			"Shared": { "$path": "src/shared" },
+			"Packages": { "$path": "Packages" }
+		},
+		"ServerScriptService": {
+			"Server": { "$path": "src/server" }
+		},
+		"StarterPlayer": {
+			"$className": "StarterPlayer",
+			"StarterPlayerScripts": {
+				"$className": "StarterPlayerScripts",
+				"Client": { "$path": "src/client" }
+			}
+		},
+		"Lighting": {
+			"$className": "Lighting",
+			"$properties": {
+				"Technology": "Future"
+			}
+		}
+	}
+}
