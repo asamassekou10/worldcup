@@ -112,6 +112,11 @@ predictBg.BackgroundColor3 = Color3.fromRGB(10, 12, 18)
 predictBg.BackgroundTransparency = 0.05
 predictBg.Parent = predictScreen
 
+-- Keep content clear of the Roblox topbar (this panel ignores the GUI inset).
+local predictPad = Instance.new("UIPadding")
+predictPad.PaddingTop = UDim.new(0, 48)
+predictPad.Parent = predictBg
+
 local predictTitle = Instance.new("TextLabel")
 predictTitle.Size = UDim2.fromScale(0.7, 0.08)
 predictTitle.Position = UDim2.fromScale(0.06, 0.04)
@@ -141,7 +146,7 @@ predictClose.BackgroundColor3 = Color3.fromRGB(180, 70, 60)
 predictClose.Font = Enum.Font.GothamBlack
 predictClose.TextScaled = true
 predictClose.TextColor3 = Color3.fromRGB(255, 255, 255)
-predictClose.Text = "✕"
+predictClose.Text = "X"
 corner(predictClose, 10)
 predictClose.Parent = predictBg
 predictClose.Activated:Connect(function()

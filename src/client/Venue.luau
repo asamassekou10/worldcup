@@ -7,6 +7,7 @@
 
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
 
 local Config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"))
 local Warmup = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Warmup"))
@@ -83,7 +84,8 @@ function Venue.goalDims(): (number, number, number)
 			local height = extentAlong(keeper, Vector3.yAxis)
 			return width, height, keeper.Position.Y - height / 2
 		end
-		return Config.Goal.Width, Config.Goal.Height, keeper.Position.Y
+		-- Keeper marker sits at mid-goal height; subtract half-height to get the base Y.
+		return Config.Goal.Width, Config.Goal.Height, keeper.Position.Y - Config.Goal.Height / 2
 	end
 	return Config.Goal.Width, Config.Goal.Height, 0
 end
@@ -164,10 +166,25 @@ local function groundY(pos: Vector3, fallback: number): number
 end
 
 function Venue.practiceGoalCFrame(): CFrame?
-	-- The far goal (or a side fallback) from the shared geometry, dropped to turf.
-	local frame = Warmup.practiceFrame()
-	if not frame then
+	-- Aim at the practice station NEAREST the local player, so walking to either end
+	-- of the pitch practises at that goal. The character stands at the spot through
+	-- the round, so the choice stays stable once a session begins.
+	local stations = Warmup.stations()
+	if #stations == 0 then
 		return nil
+	end
+	local frame = stations[1].frame
+	local char = Players.LocalPlayer and Players.LocalPlayer.Character
+	local root = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if root and #stations > 1 then
+		local best = math.huge
+		for _, s in stations do
+			local d = (s.frame.Position - root.Position).Magnitude
+			if d < best then
+				best = d
+				frame = s.frame
+			end
+		end
 	end
 	local p = frame.Position
 	return CFrame.new(Vector3.new(p.X, groundY(p, p.Y), p.Z)) * frame.Rotation

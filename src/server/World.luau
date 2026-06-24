@@ -119,7 +119,16 @@ function World.setupLighting()
 	atmosphere.Glare = 0.1
 	atmosphere.Haze = 1.2
 
-	ensure(Lighting, "Sky", "Sky")
+	-- "Sky-Realistic" (10256505900): a clear blue realistic skybox, applied game-wide. Set
+	-- the six faces directly (no runtime LoadAsset) so it's instant and never fails.
+	local sky = ensure(Lighting, "Sky", "Sky") :: Sky
+	sky.SkyboxUp = "rbxassetid://144931564"
+	sky.SkyboxDn = "rbxassetid://144931530"
+	sky.SkyboxLf = "rbxassetid://144933244"
+	sky.SkyboxRt = "rbxassetid://144933299"
+	sky.SkyboxFt = "rbxassetid://144933262"
+	sky.SkyboxBk = "rbxassetid://144933338"
+	sky.CelestialBodiesShown = true
 
 	local cc = ensure(Lighting, "ColorCorrectionEffect", "Grade") :: ColorCorrectionEffect
 	cc.Brightness = 0.02

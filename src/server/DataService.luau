@@ -14,6 +14,7 @@ local Types = require(Shared:WaitForChild("Types"))
 local Catalog = require(Shared:WaitForChild("Catalog"))
 local Progression = require(Shared:WaitForChild("Progression"))
 local WorldCup = require(Shared:WaitForChild("WorldCup"))
+local SeasonPass = require(Shared:WaitForChild("SeasonPass"))
 
 local ProfileStore = require(script.Parent:WaitForChild("ProfileStore"))
 local BadgeService = require(script.Parent:WaitForChild("BadgeService"))
@@ -27,6 +28,7 @@ local PROFILE_TEMPLATE: Types.ProfileData = {
 	GoalsScored = 0,
 	SavesMade = 0,
 	MatchesPlayed = 0,
+	HasOnboarded = false,
 	OwnedCosmetics = {},
 	Equipped = Catalog.DefaultEquipped,
 	PurchaseIds = {},
@@ -39,6 +41,17 @@ local PROFILE_TEMPLATE: Types.ProfileData = {
 	QuestSaves = 0,
 	Predictions = {},
 	PredictionRewardDay = 0,
+	SeasonXP = 0,
+	SeasonTierGranted = 0,
+	HasPremiumPass = false,
+	OwnedTitles = {},
+	EquippedTitle = "",
+	XpBoostExpiry = 0,
+	LegendsUnlocked = {},
+	ChoicesAurasOwned = {}, -- earned equippable auras (set of keys: sparkle/wind/ice/fire/thunder)
+	ChoicesQuestDay = 0,
+	ChoicesPackDay = 0,
+	ChoicesIntroSeen = false,
 }
 
 -- Systems that need a player's profile (e.g. cosmetics applying the equipped
@@ -52,11 +65,92 @@ local PlayerStore = ProfileStore.New("PlayerData_v1", PROFILE_TEMPLATE)
 -- while DataService.get() still returns the strongly-typed Data snapshot.
 local profiles: { [Player]: any } = {}
 
+-- Ice-cream cart "Free Treat" cooldown (in-memory; treats are a light, repeatable
+-- freebie, not save-critical, so a session cooldown is enough).
+local TREAT_COOLDOWN = 300 -- seconds between scoops
+local TREAT_BOOST = 300 -- seconds of 2x XP per scoop
+local TREAT_FLAVORS = {
+	{ name = "Strawberry", coins = 15 },
+	{ name = "Chocolate", coins = 20 },
+	{ name = "Vanilla", coins = 12 },
+	{ name = "Mint Choc", coins = 18 },
+	{ name = "Mango", coins = 25 },
+	{ name = "Golden Boot", coins = 40 }, -- rare lucky scoop
+}
+local nextTreatAt: { [Player]: number } = {}
+
 local function pushToClient(player: Player)
 	local profile = profiles[player]
 	if profile then
 		Net.getEvent(Net.Events.ProfileUpdate):FireClient(player, profile.Data)
 	end
+end
+
+local function pushSeasonUpdate(player: Player)
+	local profile = profiles[player]
+	if not profile then
+		return
+	end
+	local d = profile.Data
+	Net.getEvent(Net.Events.SeasonUpdate):FireClient(player, {
+		SeasonXP = d.SeasonXP,
+		SeasonTierGranted = d.SeasonTierGranted,
+		HasPremiumPass = d.HasPremiumPass,
+		EquippedTitle = d.EquippedTitle,
+	})
+end
+
+-- Apply a single season-pass reward (coins / title / xpboost) in-place.
+-- Uses the Net event directly because this runs before the `notify` local is defined.
+local function applySeasonReward(player: Player, data: Types.ProfileData, reward: SeasonPass.Reward)
+	local function sendNotify(msg: string)
+		Net.getEvent(Net.Events.Notify):FireClient(player, { message = msg })
+	end
+	if reward.kind == "coins" then
+		data.Coins += reward.amount or 0
+	elseif reward.kind == "title" then
+		local id = reward.id
+		if id and id ~= "" then
+			data.OwnedTitles[id] = true
+			if data.EquippedTitle == "" then
+				data.EquippedTitle = id
+			end
+			sendNotify(string.format("Title unlocked: %s", SeasonPass.TitleLabels[id] or id))
+		end
+	elseif reward.kind == "xpboost" then
+		local duration = reward.amount or 86400
+		data.XpBoostExpiry = math.max(data.XpBoostExpiry, os.time()) + duration
+		local hours = math.floor(duration / 3600)
+		sendNotify(string.format("%dh 2x XP Boost activated!", hours))
+	end
+end
+
+-- Grant free (and optionally premium) season-pass tier rewards, then push state.
+local function grantSeasonXp(player: Player, data: Types.ProfileData, amount: number)
+	if not SeasonPass.isActive() or amount <= 0 then
+		return
+	end
+	data.SeasonXP += amount
+	local newTier = SeasonPass.tierFromXp(data.SeasonXP)
+	local oldTier = data.SeasonTierGranted
+	if newTier <= oldTier then
+		return
+	end
+	for t = oldTier + 1, newTier do
+		local freeReward = SeasonPass.getReward(t, "free")
+		if freeReward then
+			applySeasonReward(player, data, freeReward)
+		end
+		if data.HasPremiumPass then
+			local premReward = SeasonPass.getReward(t, "premium")
+			if premReward then
+				applySeasonReward(player, data, premReward)
+			end
+		end
+	end
+	data.SeasonTierGranted = newTier
+	Net.getEvent(Net.Events.Notify)
+		:FireClient(player, { message = string.format("Season Pass - Tier %d reached!", newTier) })
 end
 
 local function notify(player: Player, message: string)
@@ -152,9 +246,11 @@ local function evaluateDaily(player: Player)
 		if data.LoginStreak >= 3 then
 			BadgeService.streak3(player)
 		end
+		grantSeasonXp(player, data, SeasonPass.XpPerLogin)
 	end
 
 	pushToClient(player)
+	pushSeasonUpdate(player)
 end
 
 local function onPlayerAdded(player: Player)
@@ -175,6 +271,7 @@ local function onPlayerAdded(player: Player)
 
 	profile.OnSessionEnd:Connect(function()
 		profiles[player] = nil
+		nextTreatAt[player] = nil
 		player:Kick("Your data session ended. Please rejoin.")
 	end)
 
@@ -203,6 +300,7 @@ function DataService.start()
 	end
 	Players.PlayerAdded:Connect(onPlayerAdded)
 	Players.PlayerRemoving:Connect(function(player: Player)
+		nextTreatAt[player] = nil
 		local profile = profiles[player]
 		if profile then
 			profile:EndSession()
@@ -257,13 +355,16 @@ function DataService.applyMatchResult(
 		BadgeService.hatTrick(player)
 	end
 
-	-- XP for the match (doubled on bonus weekends; level-up notified once below).
+	-- XP for the match (doubled on bonus weekends or active XP boost).
 	local beforeLevel = Progression.levelFromXp(data.XP)
 	local matchXp = goals * Progression.XpPerGoal
 		+ saves * Progression.XpPerSave
 		+ (if won then Progression.XpPerWin else Progression.XpPerLoss)
 	if Progression.isBonusWeekend() then
 		matchXp *= Progression.WeekendXpMultiplier
+	end
+	if data.XpBoostExpiry > os.time() then
+		matchXp *= 2
 	end
 	data.XP += matchXp
 
@@ -283,6 +384,7 @@ function DataService.applyMatchResult(
 		if current < quest.target and after >= quest.target then
 			data.Coins += quest.coins
 			data.XP += quest.xp
+			grantSeasonXp(player, data, SeasonPass.XpPerQuest)
 			notify(
 				player,
 				string.format(
@@ -315,8 +417,15 @@ function DataService.applyMatchResult(
 		BadgeService.level(player, afterLevel)
 	end
 
+	-- Season pass: grant XP for the match result.
+	local seasonMatchXp = goals * SeasonPass.XpPerGoal
+		+ saves * SeasonPass.XpPerSave
+		+ (if won then SeasonPass.XpPerWin else SeasonPass.XpPerLoss)
+	grantSeasonXp(player, data, seasonMatchXp)
+
 	updateLeaderstats(player)
 	pushToClient(player)
+	pushSeasonUpdate(player)
 end
 
 -- Record a match prediction (fixtureKey -> picked nation). Pays a one-time daily
@@ -342,6 +451,82 @@ function DataService.recordPrediction(player: Player, key: string, pick: string)
 	pushToClient(player)
 end
 
+-- Activate the premium season pass for a player: grant all retroactive premium
+-- rewards for tiers they've already unlocked, then push the updated state.
+function DataService.activatePremiumPass(player: Player)
+	local profile = profiles[player]
+	if not profile or not profile:IsActive() then
+		return
+	end
+	local data = profile.Data
+	if data.HasPremiumPass then
+		return -- idempotent
+	end
+	data.HasPremiumPass = true
+	-- Retroactively grant premium rewards for any tiers already reached.
+	for t = 1, data.SeasonTierGranted do
+		local premReward = SeasonPass.getReward(t, "premium")
+		if premReward then
+			applySeasonReward(player, data, premReward)
+		end
+	end
+	updateLeaderstats(player)
+	pushToClient(player)
+	pushSeasonUpdate(player)
+end
+
+-- Mark the first-time welcome/tutorial as seen so it never shows again.
+function DataService.markOnboarded(player: Player)
+	local profile = profiles[player]
+	if not profile or not profile:IsActive() then
+		return
+	end
+	if profile.Data.HasOnboarded then
+		return -- idempotent
+	end
+	profile.Data.HasOnboarded = true
+	profile.Data.Coins += 100 -- welcome gift so the first session feels rewarding
+	updateLeaderstats(player)
+	pushToClient(player)
+	Net.getEvent(Net.Events.Notify):FireClient(player, {
+		message = "👋 Welcome to Penalty Kings! +100 coins to get you started",
+	})
+end
+
+-- Ice-cream cart: hand out a free scoop -- a few coins + a short 2x XP boost --
+-- on a per-player cooldown. A fun, repeatable freebie that pulls players to the
+-- plaza between matches (distinct from the automatic daily login-streak reward).
+function DataService.claimTreat(player: Player)
+	local profile = profiles[player]
+	if not profile or not profile:IsActive() then
+		return
+	end
+	local now = os.time()
+	local ready = nextTreatAt[player] or 0
+	if now < ready then
+		local wait = ready - now
+		notify(player, string.format("🍦 Still melting… come back in %ds", wait))
+		return
+	end
+	nextTreatAt[player] = now + TREAT_COOLDOWN
+
+	local flavor = TREAT_FLAVORS[math.random(#TREAT_FLAVORS)]
+	local data = profile.Data
+	data.Coins += flavor.coins
+	data.XpBoostExpiry = math.max(data.XpBoostExpiry, now) + TREAT_BOOST
+	updateLeaderstats(player)
+	pushToClient(player)
+	notify(
+		player,
+		string.format(
+			"🍦 %s scoop! +%d coins · 2x XP for %dm",
+			flavor.name,
+			flavor.coins,
+			TREAT_BOOST // 60
+		)
+	)
+end
+
 -- Grant a flat coin + XP reward (hub activities like the warmup range). Notifies
 -- on level-up + awards level badges, mirrors to leaderstats, replicates.
 function DataService.grantReward(player: Player, coins: number, xp: number)
@@ -360,6 +545,94 @@ function DataService.grantReward(player: Player, coins: number, xp: number)
 	end
 	updateLeaderstats(player)
 	pushToClient(player)
+end
+
+-- Choices runner: unlock a "legend" you became by walking through its door. Returns
+-- true only the FIRST time (so the run can celebrate a fresh unlock).
+function DataService.unlockLegend(player: Player, legendId: string): boolean
+	local profile = profiles[player]
+	if not profile or not profile:IsActive() then
+		return false
+	end
+	local data = profile.Data
+	if data.LegendsUnlocked[legendId] then
+		return false
+	end
+	data.LegendsUnlocked[legendId] = true
+	pushToClient(player)
+	return true
+end
+
+-- Choices runner: grant an earned cosmetic aura. Returns true only the FIRST time (so the
+-- caller can celebrate a fresh unlock).
+function DataService.unlockChoicesAura(player: Player, key: string): boolean
+	local profile = profiles[player]
+	if not profile or not profile:IsActive() then
+		return false
+	end
+	local owned = profile.Data.ChoicesAurasOwned
+	if owned[key] then
+		return false
+	end
+	owned[key] = true
+	pushToClient(player)
+	return true
+end
+
+-- Choices runner: mark the first-time intro nudge as shown. Returns true only the FIRST
+-- time (so the nudge fires exactly once, ever).
+function DataService.markChoicesIntro(player: Player): boolean
+	local profile = profiles[player]
+	if not profile or not profile:IsActive() then
+		return false
+	end
+	if profile.Data.ChoicesIntroSeen then
+		return false
+	end
+	profile.Data.ChoicesIntroSeen = true
+	return true
+end
+
+-- Choices runner: pay a once-per-day bonus the first time you finish a run that day.
+-- Returns the coin reward (0 if already claimed today).
+function DataService.claimChoicesDaily(player: Player): number
+	local profile = profiles[player]
+	if not profile or not profile:IsActive() then
+		return 0
+	end
+	local data = profile.Data
+	local today = Progression.dayIndex()
+	if data.ChoicesQuestDay == today then
+		return 0
+	end
+	data.ChoicesQuestDay = today
+	local reward = 75
+	data.Coins += reward
+	data.XP += 25
+	updateLeaderstats(player)
+	pushToClient(player)
+	return reward
+end
+
+-- Choices runner: pay a once-per-day bonus the first time you clear ALL of today's featured
+-- "Daily 5" dilemmas in a single run. Returns the coin reward (0 if already claimed today).
+function DataService.claimChoicesPack(player: Player): number
+	local profile = profiles[player]
+	if not profile or not profile:IsActive() then
+		return 0
+	end
+	local data = profile.Data
+	local today = Progression.dayIndex()
+	if data.ChoicesPackDay == today then
+		return 0
+	end
+	data.ChoicesPackDay = today
+	local reward = 150
+	data.Coins += reward
+	data.XP += 50
+	updateLeaderstats(player)
+	pushToClient(player)
+	return reward
 end
 
 -- Atomically spend coins. Returns false (and changes nothing) if the player

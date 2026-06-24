@@ -14,9 +14,16 @@ local CosmeticsService = require(script:WaitForChild("CosmeticsService"))
 local LeaderboardService = require(script:WaitForChild("LeaderboardService"))
 local MonetizationService = require(script:WaitForChild("MonetizationService"))
 local Matchmaking = require(script:WaitForChild("Matchmaking"))
+local GauntletService = require(script:WaitForChild("GauntletService"))
+local FreekickService = require(script:WaitForChild("FreekickService"))
+local TriviaService = require(script:WaitForChild("TriviaService"))
+local WatchPartyService = require(script:WaitForChild("WatchPartyService"))
+local JuggleService = require(script:WaitForChild("JuggleService"))
 local EmoteService = require(script:WaitForChild("EmoteService"))
 local WarmupService = require(script:WaitForChild("WarmupService"))
 local HubService = require(script:WaitForChild("HubService"))
+local TriviaParkourService = require(script:WaitForChild("TriviaParkourService"))
+local TreadmillService = require(script:WaitForChild("TreadmillService"))
 local Pitch = require(script:WaitForChild("Pitch"))
 local Decor = require(script:WaitForChild("Decor"))
 local World = require(script:WaitForChild("World"))
@@ -51,6 +58,13 @@ LeaderboardService.start()
 MonetizationService.start()
 WarmupService.start()
 HubService.start()
+TriviaParkourService.start()
+TreadmillService.start()
+GauntletService.start()
+FreekickService.start()
+TriviaService.start()
+WatchPartyService.start()
+JuggleService.start()
 -- Guard world setup so a single error surfaces clearly (and doesn't abort the
 -- rest of the bootstrap, leaving an empty sky).
 local function guard(label: string, fn: () -> ...any)
@@ -76,9 +90,21 @@ end)
 
 Net.getEvent(Net.Events.SubmitInput).OnServerEvent
 	:Connect(function(player: Player, payload: unknown)
-		-- The Match sanitizes the payload; matchmaking just routes it.
-		Matchmaking.submit(player, payload)
+		-- Route: match → gauntlet → freekick.
+		if not Matchmaking.submit(player, payload) then
+			if not GauntletService.submit(player, payload) then
+				FreekickService.submit(player, payload)
+			end
+		end
 	end)
+
+Net.getEvent(Net.Events.JoinWalkOffQueue).OnServerEvent:Connect(function(player: Player)
+	Matchmaking.joinWalkOff(player)
+end)
+
+Net.getEvent(Net.Events.LeaveWalkOffQueue).OnServerEvent:Connect(function(player: Player)
+	Matchmaking.leaveWalkOff(player)
+end)
 
 Net.getEvent(Net.Events.ChallengePlayer).OnServerEvent
 	:Connect(function(player: Player, payload: unknown)
@@ -92,6 +118,10 @@ Net.getEvent(Net.Events.ChallengeRespond).OnServerEvent
 
 Net.getEvent(Net.Events.Emote).OnServerEvent:Connect(function(player: Player, payload: unknown)
 	EmoteService.handle(player, payload)
+end)
+
+Net.getEvent(Net.Events.MarkOnboarded).OnServerEvent:Connect(function(player: Player)
+	DataService.markOnboarded(player)
 end)
 
 Players.PlayerRemoving:Connect(function(player: Player)

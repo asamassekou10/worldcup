@@ -134,11 +134,16 @@ flashFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 flashFrame.BackgroundTransparency = 1
 flashFrame.Parent = flashGui
 
-local function screenFlash(strength: number)
+-- Hit-stop: a sharp white freeze-frame HELD at contact, then released -- the
+-- single biggest "weighty impact" trick. `hold` is how long the freeze lasts
+-- before the flash eases out and the celebration bursts.
+local function hitStop(strength: number, hold: number)
 	flashFrame.BackgroundTransparency = 1 - strength
-	TweenService:Create(flashFrame, TweenInfo.new(0.28, Enum.EasingStyle.Quad), {
-		BackgroundTransparency = 1,
-	}):Play()
+	task.delay(hold, function()
+		TweenService:Create(flashFrame, TweenInfo.new(0.24, Enum.EasingStyle.Quad), {
+			BackgroundTransparency = 1,
+		}):Play()
+	end)
 end
 
 -- An expanding neon shockwave sphere at the point of impact.
@@ -209,24 +214,37 @@ local function stadiumPulse()
 	up:Play()
 end
 
+-- Runs in its own thread (spawned) so the hit-stop can hold a real beat before the
+-- celebration. The ball is already parked at the impact point during the freeze.
 local function onArrive(result: Types.RoundResultInfo, target: Vector3)
 	if result.outcome == "Goal" then
+		-- 1) Freeze on contact (held white frame + a sharp jolt).
+		hitStop(0.7, 0.075)
+		Camera.shake(0.32)
+		task.wait(0.075) -- the hit-stop beat
+		-- 2) Release into the celebration.
 		Sound.play("Horn")
 		local goalTop = (Venue.goalPointWorld(0, 1) or target) + Vector3.new(0, 1, 0)
-		burst(goalTop, Color3.fromRGB(255, 230, 120), 120, 0.4)
+		burst(goalTop, Color3.fromRGB(255, 230, 120), 130, 0.4)
 		goalFlash(goalTop)
-		shockwave(target, Color3.fromRGB(255, 220, 120), 16) -- net-impact ring
-		screenFlash(0.5)
+		shockwave(target, Color3.fromRGB(255, 220, 120), 18) -- net-impact ring
 		stadiumPulse()
-		Camera.shake(0.6) -- big jolt on a goal...
-		Camera.fovPunch(10)
-		Camera.goalCam(1.8) -- ...and cut to the replay angle
+		Camera.shake(0.5) -- big jolt on a goal...
+		Camera.fovPunch(12)
+		Camera.goalCam(1.9) -- ...and cut to the replay angle
 	elseif result.outcome == "Save" then
+		-- The keeper's hero beat: a sharp freeze on the parry, then cut to a low save-cam
+		-- so the full-stretch stop reads as big as a goal.
+		hitStop(0.5, 0.06)
+		Camera.shake(0.34)
+		task.wait(0.06)
 		Sound.play("Save")
-		burst(target, Color3.fromRGB(230, 240, 255), 50, 0.2) -- puff where it's parried
-		shockwave(target, Color3.fromRGB(150, 200, 255), 10)
-		screenFlash(0.22)
-		Camera.shake(0.4)
+		burst(target, Color3.fromRGB(230, 240, 255), 80, 0.25) -- puff where it's parried
+		shockwave(target, Color3.fromRGB(150, 200, 255), 13)
+		goalFlash(target) -- a bright pop on the parry point
+		Camera.shake(0.42)
+		Camera.fovPunch(9)
+		Camera.saveCam(1.7, result.keeperX) -- cut to the diving-save replay angle
 	end
 end
 
@@ -273,7 +291,7 @@ function ShotAnimator.play(result: Types.RoundResultInfo)
 				flightConn:Disconnect()
 				flightConn = nil
 			end
-			onArrive(result, target)
+			task.spawn(onArrive, result, target) -- hit-stop yields; keep the loop clean
 			task.delay(0.9, function()
 				TweenService:Create(ball, TweenInfo.new(0.3), { CFrame = homeBall }):Play()
 			end)

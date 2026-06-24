@@ -29,50 +29,54 @@ local function findMarker(name: string): BasePart?
 	return nil
 end
 
--- True when practice runs at the real FAR goal (a "FarGoal" marker -- best -- or a
--- "Center" marker to reflect the near goal across midfield).
-function Warmup.atFarGoal(): boolean
-	return findMarker("FarGoal") ~= nil or findMarker("Center") ~= nil
-end
+-- Practice stations (ungrounded frames; callers drop them to the turf). There are
+-- up to two so you can practise at either end of the pitch:
+--   1. PRIMARY: a built goal (posts + net) off to the side of the near goal, mouth
+--      facing the shooter. `usesRealGoal=false` -> WarmupService builds the posts.
+--   2. FAR: in front of the stadium's real far goal (needs a "FarGoal" marker),
+--      mouth facing the field. `usesRealGoal=true` -> no posts built; the real goal
+--      is the backdrop and only the targets are placed.
+export type Station = { frame: CFrame, usesRealGoal: boolean }
 
--- The practice goal frame (ungrounded; callers drop it to the turf). Priority:
---   1. a "FarGoal" marker at the far goal-line centre (exact);
---   2. a "Center" marker -> reflect the near goal across midfield (approximate);
---   3. fallback: a built goal off to the side of the near goal.
--- In cases 1 & 2 the mouth faces back toward the field/shooter.
-function Warmup.practiceFrame(): CFrame?
+function Warmup.stations(): { Station }
 	local ball, keeper = findMarker("Ball"), findMarker("Keeper")
 	if not ball or not keeper then
-		return nil
+		return {}
 	end
 	local toBall =
 		Vector3.new(ball.Position.X - keeper.Position.X, 0, ball.Position.Z - keeper.Position.Z)
 	if toBall.Magnitude < 0.1 then
-		return nil
+		return {}
 	end
 	toBall = toBall.Unit
 
-	local farMarker = findMarker("FarGoal")
-	if farMarker then
-		local fp = farMarker.Position
+	local out: { Station } = {}
+	-- 1. Primary side station (built goal).
+	table.insert(out, {
+		frame = CFrame.lookAt(keeper.Position, keeper.Position + toBall)
+			* CFrame.new(Warmup.Offset, 0, 0),
+		usesRealGoal = false,
+	})
+	-- 2. Far goal station: a built goal just IN FRONT of the stadium's far goal,
+	-- facing the field, so the targets always sit inside a real goal mouth (relying
+	-- on the stadium goal as a backdrop left them floating with no posts).
+	local far = findMarker("FarGoal")
+	if far then
+		local fp = far.Position
 		local toField = Vector3.new(ball.Position.X - fp.X, 0, ball.Position.Z - fp.Z)
 		toField = if toField.Magnitude < 0.1 then -toBall else toField.Unit
-		return CFrame.lookAt(fp, fp + toField) -- mouth faces the field/shooter
+		-- Step a few studs toward the field so the built posts don't z-fight the
+		-- stadium goal behind them.
+		local frontPos = fp + toField * 4
+		table.insert(out, { frame = CFrame.lookAt(frontPos, frontPos + toField), usesRealGoal = false })
 	end
+	return out
+end
 
-	local center = findMarker("Center")
-	if center then
-		local cp = center.Position
-		local far = Vector3.new(
-			2 * cp.X - keeper.Position.X,
-			keeper.Position.Y,
-			2 * cp.Z - keeper.Position.Z
-		)
-		return CFrame.lookAt(far, far - toBall) -- mouth faces back toward midfield
-	end
-
-	return CFrame.lookAt(keeper.Position, keeper.Position + toBall)
-		* CFrame.new(Warmup.Offset, 0, 0)
+-- Back-compat single frame (the primary station), still used as a fallback.
+function Warmup.practiceFrame(): CFrame?
+	local stations = Warmup.stations()
+	return if stations[1] then stations[1].frame else nil
 end
 
 export type Target = { x: number, y: number, r: number, points: number }

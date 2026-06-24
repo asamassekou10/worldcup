@@ -10,6 +10,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Net = require(Shared:WaitForChild("Net"))
 local Config = require(Shared:WaitForChild("Config"))
+local MapLayout = require(Shared:WaitForChild("MapLayout"))
 
 local DataService = require(script.Parent:WaitForChild("DataService"))
 local Assets = require(script.Parent:WaitForChild("Assets"))
@@ -126,21 +127,30 @@ local function build()
 	local function atFrac(frac: number, side: number): Vector3
 		return goalXZ - dir * (frac * halfLen) + right * side
 	end
-	local face = CFrame.lookAt(Vector3.zero, dir) -- props face the goal/pitch
+	-- A plaza-slot anchor from the shared MapLayout -> a grounded CFrame (facing the
+	-- pitch). Falls back to the goal area if the layout can't resolve the markers.
+	local function plazaCF(slot: string): CFrame
+		return MapLayout.plaza(slot) or CFrame.new(goalXZ)
+	end
 
-	-- ---- a stand: a mesh model if it loads, else a built counter ----
+	-- Same, for the activities row on the far (-side) touchline.
+	local function activityCF(slot: string): CFrame
+		return MapLayout.activity(slot) or CFrame.new(goalXZ)
+	end
+
+	-- ---- a stand at a plaza anchor: a mesh model if it loads, else a built counter ----
 	local function stall(
-		frac: number,
-		side: number,
+		anchor: CFrame,
 		modelId: number,
 		label: string,
 		name: string,
 		action: string,
 		color: Color3
 	)
-		local base = ground(atFrac(frac, side))
+		local base = ground(Vector3.new(anchor.Position.X, 0, anchor.Position.Z))
+		local rot = anchor.Rotation
 		local anchorPart: BasePart? = nil
-		local placed = Assets.place(folder, modelId, CFrame.new(base) * face, 6)
+		local placed = Assets.place(folder, modelId, CFrame.new(base) * rot, 6)
 		if placed then
 			anchorPart = Assets.anchor(placed)
 		end
@@ -149,14 +159,14 @@ local function build()
 			anchorPart = part(
 				folder,
 				Vector3.new(5, 3, 1.6),
-				CFrame.new(base + Vector3.new(0, 1.5, 0)) * face.Rotation,
+				CFrame.new(base + Vector3.new(0, 1.5, 0)) * rot,
 				color,
 				Enum.Material.SmoothPlastic
 			)
 			part(
 				folder,
 				Vector3.new(5.6, 0.4, 2.2),
-				CFrame.new(base + Vector3.new(0, 3.1, 0)) * face.Rotation,
+				CFrame.new(base + Vector3.new(0, 3.1, 0)) * rot,
 				Color3.fromRGB(245, 245, 245),
 				Enum.Material.SmoothPlastic
 			)
@@ -165,11 +175,10 @@ local function build()
 		prompt(anchorPart :: BasePart, name, action, "")
 	end
 
-	-- Shop / Ranks / Store stands in an arc behind the gathering point, spaced out
-	-- so their signs never overlap.
+	-- Shop / Ranks / Store stands in a tidy row down the plaza touchline (positions
+	-- come from the shared MapLayout so the whole map stays coherent).
 	stall(
-		1.2,
-		-26,
+		plazaCF("shop"),
 		Config.Models.StandShop,
 		"🛒 SHOP",
 		"ShopPrompt",
@@ -177,8 +186,7 @@ local function build()
 		Color3.fromRGB(46, 110, 70)
 	)
 	stall(
-		1.35,
-		0,
+		plazaCF("ranks"),
 		Config.Models.StandRanks,
 		"🏆 RANKS",
 		"RanksPrompt",
@@ -186,8 +194,7 @@ local function build()
 		Color3.fromRGB(60, 70, 110)
 	)
 	stall(
-		1.2,
-		26,
+		plazaCF("store"),
 		Config.Models.StandStore,
 		"💎 STORE",
 		"StorePrompt",
@@ -195,26 +202,50 @@ local function build()
 		Color3.fromRGB(110, 70, 130)
 	)
 
-	-- A decorative food/ice-cream stand to dress the plaza (no prompt).
-	Assets.place(folder, Config.Models.StandDeco, CFrame.new(ground(atFrac(0.78, 0))) * face, 6)
-
-	-- Predictions kiosk off to one side at midfield.
+	-- The ice-cream cart is a FREE TREAT stand on the activities (-side) row: walk up
+	-- for a quick scoop (a few coins + a short 2x XP boost, on a per-player cooldown)
+	-- -- a fun little freebie to come back for between matches.
 	do
-		local base = ground(atFrac(0.95, -34))
-		local kiosk = part(
-			folder,
-			Vector3.new(4, 4, 1.6),
-			CFrame.new(base + Vector3.new(0, 2, 0)) * face.Rotation,
-			Color3.fromRGB(120, 60, 150),
-			Enum.Material.SmoothPlastic
-		)
-		sign(kiosk, "🔮 PREDICT", Color3.fromRGB(230, 200, 255))
-		prompt(kiosk, "PredictPrompt", "Predict Matches", "🔮 Match Predictor")
+		local acf = activityCF("icecream")
+		local base = ground(Vector3.new(acf.Position.X, 0, acf.Position.Z))
+		local placed =
+			Assets.place(folder, Config.Models.StandDeco, CFrame.new(base) * acf.Rotation, 6)
+		local anchorPart: BasePart? = if placed then Assets.anchor(placed) else nil
+		if anchorPart then
+			sign(anchorPart, "🍦 FREE TREAT", Color3.fromRGB(255, 225, 245))
+			prompt(anchorPart, "TreatPrompt", "Grab a treat", "🍦 Ice Cream Cart")
+			local tp = anchorPart:FindFirstChild("TreatPrompt")
+			if tp and tp:IsA("ProximityPrompt") then
+				tp.Triggered:Connect(function(player: Player)
+					DataService.claimTreat(player)
+				end)
+			end
+		end
 	end
 
-	-- Trophy photo booth off to the other side at midfield.
+	-- Predictions booth on the activities (-side) row: a referee mans the desk.
 	do
-		local base = ground(atFrac(0.95, 34))
+		local acf = activityCF("predict")
+		local base = ground(Vector3.new(acf.Position.X, 0, acf.Position.Z))
+		Assets.place(folder, Config.Models.PredictKiosk, CFrame.new(base) * acf.Rotation, 5.6)
+		-- A small desk in front of the ref to hold the prompt + sign.
+		local desk = part(
+			folder,
+			Vector3.new(4, 3, 1.4),
+			CFrame.new(base + Vector3.new(0, 1.5, 0)) * acf.Rotation * CFrame.new(0, 0, -2),
+			Color3.fromRGB(40, 60, 110),
+			Enum.Material.SmoothPlastic
+		)
+		sign(desk, "🔮 PREDICT", Color3.fromRGB(230, 200, 255))
+		prompt(desk, "PredictPrompt", "Predict Matches", "🔮 Match Predictor")
+	end
+
+	-- Trophy photo booth REMOVED — the Warm-Up treadmills sit at this plaza spot now
+	-- (placed by TriviaParkourService). The old build is gated off below.
+	local SHOW_PHOTO_BOOTH = false
+	if SHOW_PHOTO_BOOTH then
+		local base =
+			ground(Vector3.new(plazaCF("photo").Position.X, 0, plazaCF("photo").Position.Z))
 		local pedestal = part(
 			folder,
 			Vector3.new(3.4, 2, 3.4),
@@ -227,29 +258,56 @@ local function build()
 			* CFrame.Angles(0, 0, math.rad(90))
 		local topY = base.Y + 2
 
-		local source = workspace:FindFirstChild("World Cup Trophy", true)
-		if source and source:IsA("Model") then
-			local clone = source:Clone()
-			clone.Name = "PhotoTrophy"
-			for _, d in clone:GetDescendants() do
+		-- Collect EVERY World Cup trophy already in the Workspace -- the user's own model
+		-- plus any copies accidentally saved into the place on earlier runs -- keep ONE
+		-- and destroy the rest, so no stray trophy is ever left out on the pitch.
+		local placedTrophy: Instance? = nil
+		local trophies: { Model } = {}
+		for _, d in workspace:GetDescendants() do
+			if
+				d:IsA("Model")
+				and (d.Name == "World Cup Trophy" or d.Name == "PhotoTrophy")
+				and not d:IsDescendantOf(folder)
+			then
+				table.insert(trophies, d)
+			end
+		end
+		local keep = trophies[1]
+		for i = 2, #trophies do
+			trophies[i]:Destroy()
+		end
+		if keep then
+			for _, d in keep:GetDescendants() do
 				if d:IsA("BasePart") then
 					d.Anchored = true
 					d.CanCollide = false
 					d.CanQuery = false
 				end
 			end
-			clone.Parent = folder
-			-- Scale to ~5 studs tall, then sit it on the pedestal.
-			local _, size = clone:GetBoundingBox()
-			if size.Y > 0.1 then
+			local _, sz = keep:GetBoundingBox()
+			if sz.Y > 0.1 then
 				pcall(function()
-					clone:ScaleTo(clone:GetScale() * (5 / size.Y))
+					keep:ScaleTo(keep:GetScale() * (5 / sz.Y))
 				end)
 			end
-			local _, scaled = clone:GetBoundingBox()
-			clone:PivotTo(CFrame.new(base + Vector3.new(0, 2 + scaled.Y / 2, 0)))
+			-- Sit the trophy's BASE on the pedestal top, correcting for its pivot offset
+			-- (its pivot is NOT its centre -- that's why it floated before).
+			local boxCF, scaled = keep:GetBoundingBox()
+			local pivotOffset = keep:GetPivot().Position - boxCF.Position
+			local boxCentre = Vector3.new(base.X, base.Y + 2 + scaled.Y / 2, base.Z)
+			keep:PivotTo(CFrame.new(boxCentre + pivotOffset))
+			placedTrophy = keep
 		else
-			-- Fallback if the model isn't in the Workspace: a simple built trophy.
+			-- No model in the Workspace: place the trophy asset directly on the pedestal.
+			placedTrophy = Assets.place(
+				folder,
+				Config.Models.Trophy,
+				CFrame.new(base + Vector3.new(0, 2, 0)),
+				5
+			)
+		end
+		if not placedTrophy then
+			-- Fallback if neither is available: a simple built trophy.
 			local GOLD = Color3.fromRGB(240, 200, 70)
 			local cup = part(
 				folder,

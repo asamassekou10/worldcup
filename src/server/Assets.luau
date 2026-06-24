@@ -21,17 +21,26 @@ function Assets.template(id: number): Instance?
 	elseif cached ~= nil then
 		return cached :: Instance
 	end
+	-- InsertService:LoadAsset is throttled, so a burst of loads at server boot can
+	-- make individual calls fail transiently. Retry a few times before giving up so
+	-- one unlucky throttle doesn't permanently bake in the built fallback.
 	local inner: Instance? = nil
-	local ok, container = pcall(function()
-		return InsertService:LoadAsset(id)
-	end)
-	if ok and container then
-		local found = container:FindFirstChildWhichIsA("Model")
-			or container:FindFirstChildWhichIsA("BasePart")
-		if found then
-			inner = found:Clone()
+	for attempt = 1, 4 do
+		local ok, container = pcall(function()
+			return InsertService:LoadAsset(id)
+		end)
+		if ok and container then
+			local found = container:FindFirstChildWhichIsA("Model")
+				or container:FindFirstChildWhichIsA("BasePart")
+			if found then
+				inner = found:Clone()
+			end
+			container:Destroy()
 		end
-		container:Destroy()
+		if inner then
+			break
+		end
+		task.wait(0.6 * attempt) -- back off before the next retry
 	end
 	cache[id] = inner or false
 	return inner

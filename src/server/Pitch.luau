@@ -10,6 +10,7 @@ local TweenService = game:GetService("TweenService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"))
+local MapLayout = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("MapLayout"))
 
 local Pitch = {}
 
@@ -117,12 +118,32 @@ end
 -- Where waiting players gather: just in front of the midfield centre (so they
 -- don't spawn inside a centre-circle model), facing the goal.
 function Pitch.lobbyCFrame(): CFrame?
+	-- Spawn in the plaza (MapLayout's single source of truth), grounded on the apron
+	-- with the HRP raised so players stand cleanly instead of sinking.
+	local cf = MapLayout.plaza("spawn")
+	if cf then
+		local params = RaycastParams.new()
+		params.FilterType = Enum.RaycastFilterType.Exclude
+		local excludes: { Instance } = {}
+		for _, n in { "WarmupRange", "HubProps", "WorldCupDecor", "LobbySpawn" } do
+			local f = workspace:FindFirstChild(n)
+			if f then
+				table.insert(excludes, f)
+			end
+		end
+		params.FilterDescendantsInstances = excludes
+		local hit = workspace:Raycast(cf.Position + Vector3.new(0, 80, 0), Vector3.new(0, -200, 0), params)
+		local groundY = if hit then hit.Position.Y else cf.Position.Y
+		return CFrame.new(Vector3.new(cf.Position.X, groundY + 3.5, cf.Position.Z)) * cf.Rotation
+	end
+
+	-- Fallback: the old midfield gather point.
 	local g = geo()
 	local mid = Pitch.midfield()
 	if not g or not mid then
 		return nil
 	end
-	local pos = mid + g.dir * 8 -- a few studs toward the goal, clear of the centre model
+	local pos = mid + g.dir * 8
 	return CFrame.lookAt(pos, pos + g.dir)
 end
 

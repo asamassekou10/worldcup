@@ -55,6 +55,66 @@ Net.Events = {
 
 	-- Prediction booth (hub): client -> server
 	Predict = "Predict", -- { key: string, pick: string } -> record a match prediction
+
+	-- Season Pass ("Road to the Final"): server -> client
+	SeasonUpdate = "SeasonUpdate", -- { SeasonXP, SeasonTierGranted, HasPremiumPass, EquippedTitle }
+
+	-- Walk-Off 1v1 queue: client -> server / server -> client
+	JoinWalkOffQueue = "JoinWalkOffQueue", -- client -> server: enter the walk-off queue
+	LeaveWalkOffQueue = "LeaveWalkOffQueue", -- client -> server: leave the walk-off queue
+	WalkOffQueueUpdate = "WalkOffQueueUpdate", -- server -> client: { inQueue, size }
+
+	-- Goalkeeper Gauntlet (minigame): server fires RoundStart/RoundResult/MatchOver
+	-- with a gauntlet flag so the client can show the right UI context.
+	GauntletStart = "GauntletStart", -- server -> client: shot N/10 beginning (like RoundStartInfo + isGauntlet=true)
+	GauntletOver = "GauntletOver", -- server -> client: { saves, totalShots, reward }
+
+	-- Trivia Kiosk (minigame): World Cup knowledge quiz for coins.
+	TriviaQuestion = "TriviaQuestion", -- server -> client: { index, total, question, options, deadline }
+	TriviaSubmit = "TriviaSubmit", -- client -> server: { answer: "A"|"B"|"C"|"D" }
+	TriviaResult = "TriviaResult", -- server -> client: { correct, correctAnswer, coinsEarned }
+	TriviaOver = "TriviaOver", -- server -> client: { score, total, totalCoins }
+
+	-- Free Kick Challenge (minigame): player shoots at target zones for coins.
+	-- Per-shot: server fires FreekickStart then the standard RoundStart/RoundResult.
+	-- End:      server fires MatchOver then FreekickOver.
+	FreekickStart = "FreekickStart", -- server -> client: { shotIndex, totalShots, targetX, targetY, targetLabel, deadline }
+	FreekickOver = "FreekickOver", -- server -> client: { hits, totalShots, totalCoins }
+
+	-- First-time onboarding: client tells the server the welcome flow is complete.
+	MarkOnboarded = "MarkOnboarded", -- client -> server: set HasOnboarded = true
+
+	-- Juggling Pitch (minigame): tap-timing ball juggle for coins.
+	JuggleStart = "JuggleStart", -- server -> client: { duration, startTime, freq }
+	JuggleHit = "JuggleHit", -- client -> server: (no payload — tap event)
+	JuggleUpdate = "JuggleUpdate", -- server -> client: { count, streak, freq }
+	JuggleOver = "JuggleOver", -- server -> client: { count, totalCoins }
+
+	-- Choices runner: per-player scary atmosphere swap (client-side Lighting), used only
+	-- for the optional intense finale -- the run is bright by default.
+	GauntletAtmosphere = "GauntletAtmosphere", -- server -> client: { active: boolean }
+	-- Choices runner: after you walk through a door, the server sends the GLOBAL vote
+	-- tally so the client can pop the "X% chose A / Y% chose B" splash (the viral hook).
+	ChoiceResult = "ChoiceResult", -- server -> client:
+	-- { prompt, aText, bText, aPct, bPct, picked: "a"|"b", correct: "a"|"b"? }
+	-- Choices runner: fired on entry/exit so the client can hide the penalty-game HUD
+	-- (clean screen) and restore the camera when leaving.
+	ChoicesMode = "ChoicesMode", -- server -> client: { active: boolean }
+	-- Choices runner: the course manifest (each gate's world-Z, prompt and the two door
+	-- texts), so the client can frame/zoom the doors you're approaching (+ optional voice).
+	ChoicesCourse = "ChoicesCourse", -- server -> client: { gates: { {z, prompt, a, b} } }
+	-- Choices runner: the end-of-run summary that drives the shareable "personality card"
+	-- (how often you sided with the crowd) + the legend-collection progress.
+	ChoicesSummary = "ChoicesSummary", -- server -> client:
+	-- { agreed, dilemmas, points, legendsUnlocked, legendsTotal, newLegends: {string} }
+
+	-- Treadmill "Training Grounds": a tick of earnings while you're on a treadmill, so the
+	-- client can pop a "+X coins / +Y XP" ticker (and note an active Energy Drink boost).
+	TreadmillTick = "TreadmillTick", -- server -> client: { coins, xp, energy: boolean }
+
+	-- Choices runner: a door's PER-PLAYER effect (personal weather + a sound). Body/gameplay
+	-- effects are applied server-side; this carries the things only the local client can do.
+	ChoicesEffect = "ChoicesEffect", -- server -> client: { weather: string?, sound: string? }
 }
 
 local folder: Folder?

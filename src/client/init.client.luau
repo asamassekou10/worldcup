@@ -60,35 +60,6 @@ end
 local loadingScreen = buildLoadingScreen()
 Debris:AddItem(loadingScreen, 12) -- hard safety: never let it get stuck on screen
 
--- A subtle cinematic vignette (edge gradients -> no asset needed). Sits behind the
--- HUD; Frames don't capture input, so it never blocks gameplay.
-local function buildVignette()
-	local gui = Instance.new("ScreenGui")
-	gui.Name = "Vignette"
-	gui.IgnoreGuiInset = true
-	gui.DisplayOrder = -1
-	gui.ResetOnSpawn = false
-	local function edge(size: UDim2, pos: UDim2, rotation: number, fadeIn: boolean)
-		local f = Instance.new("Frame")
-		f.Size = size
-		f.Position = pos
-		f.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-		f.BorderSizePixel = 0
-		local g = Instance.new("UIGradient")
-		g.Rotation = rotation
-		local a, b = 0.45, 1 -- edge opacity -> transparent toward centre
-		g.Transparency = if fadeIn then NumberSequence.new(a, b) else NumberSequence.new(b, a)
-		g.Parent = f
-		f.Parent = gui
-	end
-	edge(UDim2.fromScale(1, 0.16), UDim2.fromScale(0, 0), 90, true) -- top
-	edge(UDim2.fromScale(1, 0.16), UDim2.fromScale(0, 0.84), 90, false) -- bottom
-	edge(UDim2.fromScale(0.12, 1), UDim2.fromScale(0, 0), 0, true) -- left
-	edge(UDim2.fromScale(0.12, 1), UDim2.fromScale(0.88, 0), 0, false) -- right
-	gui.Parent = player:WaitForChild("PlayerGui")
-end
-buildVignette()
-
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Net = require(Shared:WaitForChild("Net"))
 local Types = require(Shared:WaitForChild("Types"))
@@ -101,6 +72,8 @@ local Sound = require(script:WaitForChild("Sound"))
 local Camera = require(script:WaitForChild("Camera"))
 local Warmup = require(script:WaitForChild("Warmup"))
 local Hub = require(script:WaitForChild("Hub"))
+local Juggle = require(script:WaitForChild("Juggle"))
+local Onboarding = require(script:WaitForChild("Onboarding"))
 
 local hud = UI.create(player)
 
@@ -194,6 +167,15 @@ hud.onBuyDoubler = function()
 	end
 end
 
+hud.onBuySeasonPass = function()
+	local id = Config.Monetization.SeasonPassId
+	if id > 0 then
+		MarketplaceService:PromptGamePassPurchase(player, id)
+	else
+		hud.notify("Season Pass coming soon!")
+	end
+end
+
 Net.getEvent(Net.Events.QueueUpdate).OnClientEvent:Connect(function(payload: unknown)
 	local info = payload :: Types.QueueInfo
 	inQueue = info.inQueue
@@ -206,6 +188,10 @@ Net.getEvent(Net.Events.RoundStart).OnClientEvent:Connect(function(payload: unkn
 	Warmup.cancel() -- drop the practice mini-game if a match starts
 	Sound.stopMusic() -- entrance song off; crowd ambience carries the match
 	Camera.toMatch(info.role == "Keeper") -- goalkeeper view on your turn to keep
+	-- Anticipation: dip the crowd to a tense hush as the kicker steps up, so the roar
+	-- (or groan) on the result lands with real contrast. Pairs with the camera dolly.
+	Sound.setCrowdIntensity(0.22, 0.7)
+	Sound.play("StepUp") -- optional tension tick (no-op until an id is set)
 	hud.startRound(info)
 end)
 
@@ -213,16 +199,31 @@ Net.getEvent(Net.Events.RoundResult).OnClientEvent:Connect(function(payload: unk
 	local info = payload :: Types.RoundResultInfo
 	hud.showRoundResult(info)
 	ShotAnimator.play(info)
+	-- Reactive crowd: roar on goal, cheer on save, quiet groan on miss.
+	if info.outcome == "Goal" then
+		Sound.crowdGoalReact()
+		DecorFX.billow(info.shotX, info.shotY)
+	elseif info.outcome == "Save" then
+		Sound.crowdSaveReact()
+	else
+		Sound.crowdMissReact()
+	end
 end)
 
 Net.getEvent(Net.Events.MatchOver).OnClientEvent:Connect(function(payload: unknown)
+	local info = payload :: Types.MatchOverInfo
+	if info.won then
+		Sound.play("WinFanfare") -- victory fanfare (no-op until an id is set)
+	end
 	Sound.playMusic() -- back to the lobby tune
 	Camera.toLobby() -- hand control back to the walk-around camera
-	hud.showMatchOver(payload :: Types.MatchOverInfo)
+	hud.showMatchOver(info)
 end)
 
 Net.getEvent(Net.Events.ProfileUpdate).OnClientEvent:Connect(function(payload: unknown)
-	hud.setProfile(payload :: Types.ProfileData)
+	local profile = payload :: Types.ProfileData
+	hud.setProfile(profile)
+	Onboarding.start(profile) -- first-time welcome (shows once, self-guards)
 end)
 
 Net.getEvent(Net.Events.Notify).OnClientEvent:Connect(function(payload: unknown)
@@ -240,17 +241,1170 @@ end)
 
 Net.getEvent(Net.Events.ChallengeInvite).OnClientEvent:Connect(function(payload: unknown)
 	local info = payload :: { fromUserId: number, fromName: string }
+	Sound.play("Challenge") -- "why are you challenging me?" taunt on an incoming challenge
 	hud.showChallengeInvite(info.fromUserId, info.fromName)
 end)
+
+-- Trivia Gauntlet: swap THIS client's Lighting to a scary sky + red haze while in the
+-- course, and restore it on exit. Local-only changes, so the stadium stays normal for
+-- everyone else. The server parks the scary Sky in ReplicatedStorage.GauntletSky.
+do
+	local Lighting = game:GetService("Lighting")
+	local saved: { Instance } = {} -- stadium Lighting children hidden during the run
+	local added: { Instance } = {} -- scary children we added, destroyed on exit
+	local active = false
+
+	local function hide(inst: Instance?)
+		if inst then
+			inst.Parent = nil
+			table.insert(saved, inst)
+		end
+	end
+
+	local function applyScary()
+		if active then
+			return
+		end
+		active = true
+		-- Only blank out the stadium sky if we actually have the scary sky to put in its
+		-- place -- otherwise the screen just goes black (the "dark sky" bug). If the asset
+		-- didn't load, we keep the stadium sky and just tint it red below.
+		local src = ReplicatedStorage:FindFirstChild("GauntletSky")
+		if src then
+			hide(Lighting:FindFirstChildOfClass("Sky"))
+			hide(Lighting:FindFirstChildOfClass("Atmosphere"))
+			local sky = src:Clone()
+			sky.Parent = Lighting
+			table.insert(added, sky)
+			local atm = Instance.new("Atmosphere")
+			atm.Density = 0.42
+			atm.Color = Color3.fromRGB(200, 90, 60)
+			atm.Decay = Color3.fromRGB(120, 40, 30)
+			atm.Haze = 2.5
+			atm.Parent = Lighting
+			table.insert(added, atm)
+		end
+		local cc = Instance.new("ColorCorrectionEffect")
+		cc.TintColor = Color3.fromRGB(255, 150, 130)
+		cc.Brightness = -0.05
+		cc.Contrast = 0.15
+		cc.Parent = Lighting
+		table.insert(added, cc)
+	end
+
+	local function revert()
+		if not active then
+			return
+		end
+		active = false
+		for _, p in added do
+			p:Destroy()
+		end
+		added = {}
+		for _, p in saved do
+			p.Parent = Lighting
+		end
+		saved = {}
+	end
+
+	Net.getEvent(Net.Events.GauntletAtmosphere).OnClientEvent:Connect(function(payload: unknown)
+		local info = payload :: { active: boolean }
+		if info.active then
+			applyScary()
+		else
+			revert()
+		end
+	end)
+end
+
+-- Choices runner audio: a looping track during a run + one-shot SFX. All graceful -- a
+-- private/unowned id just plays silent, never errors. Shared by the Choices blocks below.
+local choicesMusic = Instance.new("Sound")
+choicesMusic.Name = "ChoicesMusic"
+choicesMusic.SoundId = Config.ChoicesMusic or ""
+choicesMusic.Looped = true
+choicesMusic.Volume = 0.4
+choicesMusic.Parent = workspace:FindFirstChildOfClass("SoundService")
+	or game:GetService("SoundService")
+local function choicesSfx(soundId: string?)
+	if not soundId or soundId == "" then
+		return
+	end
+	local s = Instance.new("Sound")
+	s.SoundId = soundId
+	s.Volume = 0.7
+	s.Parent = game:GetService("SoundService")
+	s:Play()
+	Debris:AddItem(s, 6)
+end
+
+-- A transient FOV "punch" (a quick zoom-in kick) set when you cross a door and decayed by the
+-- choices camera loop -- shared across the two do-blocks below so each pick lands as a beat.
+local cameraPunch = 0
+
+-- Choices runner: after you walk through a door, the server sends the GLOBAL vote split
+-- (or, on a World Cup trivia gate, which door was correct). This pops the video's
+-- "62% chose X / 38% chose Y" splash on the left, then fades.
+do
+	type Result = {
+		prompt: string,
+		aText: string,
+		bText: string,
+		aPct: number,
+		bPct: number,
+		picked: string, -- "a" | "b"
+		correct: string?, -- set on trivia gates: "a" | "b"
+		index: number?, -- which gate (1..total)
+		total: number?, -- gates in the run
+	}
+
+	local gui = Instance.new("ScreenGui")
+	gui.Name = "ChoiceSplash"
+	gui.ResetOnSpawn = false
+	gui.IgnoreGuiInset = true
+	gui.DisplayOrder = 18
+	gui.Enabled = false
+	gui.Parent = player:WaitForChild("PlayerGui")
+
+	local panel = Instance.new("Frame")
+	panel.AnchorPoint = Vector2.new(0, 0.5)
+	panel.Position = UDim2.new(0, 24, 0.5, 0)
+	panel.Size = UDim2.fromOffset(330, 150)
+	panel.BackgroundColor3 = Color3.fromRGB(12, 16, 28)
+	panel.BackgroundTransparency = 0.15
+	panel.BorderSizePixel = 0
+	panel.Parent = gui
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 14)
+	corner.Parent = panel
+
+	local header = Instance.new("TextLabel")
+	header.Size = UDim2.new(1, -20, 0, 26)
+	header.Position = UDim2.fromOffset(10, 8)
+	header.BackgroundTransparency = 1
+	header.Font = Enum.Font.GothamBold
+	header.TextScaled = true
+	header.TextXAlignment = Enum.TextXAlignment.Left
+	header.TextColor3 = Color3.fromRGB(180, 190, 210)
+	header.Text = ""
+	header.Parent = panel
+
+	local progress = Instance.new("TextLabel")
+	progress.AnchorPoint = Vector2.new(1, 0)
+	progress.Size = UDim2.fromOffset(96, 22)
+	progress.Position = UDim2.new(1, -10, 0, 10)
+	progress.BackgroundTransparency = 1
+	progress.Font = Enum.Font.GothamBold
+	progress.TextScaled = true
+	progress.TextXAlignment = Enum.TextXAlignment.Right
+	progress.TextColor3 = Color3.fromRGB(255, 220, 120)
+	progress.Text = ""
+	progress.Parent = panel
+
+	local function bar(y: number): (TextLabel, Frame)
+		local holder = Instance.new("Frame")
+		holder.Size = UDim2.new(1, -20, 0, 44)
+		holder.Position = UDim2.fromOffset(10, y)
+		holder.BackgroundColor3 = Color3.fromRGB(28, 34, 50)
+		holder.BorderSizePixel = 0
+		holder.Parent = panel
+		local hc = Instance.new("UICorner")
+		hc.CornerRadius = UDim.new(0, 8)
+		hc.Parent = holder
+		local fill = Instance.new("Frame")
+		fill.Size = UDim2.fromScale(0.5, 1)
+		fill.BackgroundColor3 = Color3.fromRGB(60, 130, 230)
+		fill.BorderSizePixel = 0
+		fill.Parent = holder
+		local fc = Instance.new("UICorner")
+		fc.CornerRadius = UDim.new(0, 8)
+		fc.Parent = fill
+		local txt = Instance.new("TextLabel")
+		txt.Size = UDim2.new(1, -16, 1, 0)
+		txt.Position = UDim2.fromOffset(8, 0)
+		txt.BackgroundTransparency = 1
+		txt.Font = Enum.Font.GothamBlack
+		txt.TextScaled = true
+		txt.TextXAlignment = Enum.TextXAlignment.Left
+		txt.TextColor3 = Color3.fromRGB(255, 255, 255)
+		txt.TextStrokeTransparency = 0.4
+		txt.ZIndex = 2
+		txt.Text = ""
+		txt.Parent = holder
+		return txt, fill
+	end
+	local txtA, fillA = bar(40)
+	local txtB, fillB = bar(92)
+
+	local token = 0
+	Net.getEvent(Net.Events.ChoiceResult).OnClientEvent:Connect(function(payload: unknown)
+		local r = payload :: Result
+		token += 1
+		local mine = token
+		local trivia = r.correct ~= nil
+		choicesSfx(Config.Sounds.DoorWhoosh) -- door whoosh every pick
+		-- a quick "transformation" burst on your character so every pick FEELS like a change
+		do
+			local ch = player.Character
+			local hrp = ch and ch:FindFirstChild("HumanoidRootPart")
+			if hrp then
+				local fx = Instance.new("Part")
+				fx.Anchored = true
+				fx.CanCollide = false
+				fx.CanQuery = false
+				fx.Transparency = 1
+				fx.Size = Vector3.new(1, 1, 1)
+				fx.CFrame = (hrp :: BasePart).CFrame
+				fx.Parent = workspace
+				local burst = Instance.new("ParticleEmitter")
+				burst.Color =
+					ColorSequence.new(Color3.fromRGB(255, 240, 180), Color3.fromRGB(120, 200, 255))
+				burst.LightEmission = 1
+				burst.Lifetime = NumberRange.new(0.4, 0.6)
+				burst.Speed = NumberRange.new(14, 20)
+				burst.SpreadAngle = Vector2.new(180, 180)
+				burst.Size = NumberSequence.new(1.6)
+				burst.Rate = 0
+				burst.Parent = fx
+				burst:Emit(40)
+				Debris:AddItem(fx, 1)
+			end
+		end
+		cameraPunch = 13 -- a quick zoom-in kick so the transformation lands as a beat
+		if trivia then
+			choicesSfx(
+				if r.picked == r.correct
+					then Config.Sounds.AnswerCorrect
+					else Config.Sounds.AnswerWrong
+			)
+			header.Text = (if r.picked == r.correct then "✅ Correct!" else "❌ Wrong!")
+			local greenA = r.correct == "a"
+			fillA.Size = UDim2.fromScale(1, 1)
+			fillB.Size = UDim2.fromScale(1, 1)
+			fillA.BackgroundColor3 = if greenA
+				then Color3.fromRGB(70, 190, 110)
+				else Color3.fromRGB(150, 60, 60)
+			fillB.BackgroundColor3 = if greenA
+				then Color3.fromRGB(150, 60, 60)
+				else Color3.fromRGB(70, 190, 110)
+			txtA.Text = r.aText
+			txtB.Text = r.bText
+		else
+			header.Text = "🌍 What everyone picked"
+			fillA.BackgroundColor3 = Color3.fromRGB(60, 130, 230)
+			fillB.BackgroundColor3 = Color3.fromRGB(235, 120, 55)
+			fillA.Size = UDim2.fromScale(math.max(0.06, r.aPct / 100), 1)
+			fillB.Size = UDim2.fromScale(math.max(0.06, r.bPct / 100), 1)
+			txtA.Text = string.format("%d%%  %s", r.aPct, r.aText)
+			txtB.Text = string.format("%d%%  %s", r.bPct, r.bText)
+		end
+		-- highlight the door you chose
+		txtA.TextColor3 = if r.picked == "a"
+			then Color3.fromRGB(255, 240, 150)
+			else Color3.fromRGB(255, 255, 255)
+		txtB.TextColor3 = if r.picked == "b"
+			then Color3.fromRGB(255, 240, 150)
+			else Color3.fromRGB(255, 255, 255)
+		progress.Text = if r.index and r.total
+			then string.format("Gate %d/%d", r.index, r.total)
+			else ""
+		gui.Enabled = true
+		-- slide in from off the left edge for a bit of juice
+		panel.Position = UDim2.new(0, -360, 0.5, 0)
+		TweenService
+			:Create(panel, TweenInfo.new(0.32, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+				Position = UDim2.new(0, 24, 0.5, 0),
+			})
+			:Play()
+		task.delay(3.2, function()
+			if token == mine then
+				gui.Enabled = false
+			end
+		end)
+	end)
+end
+
+-- Choices runner: hide the penalty-game HUD on entry (clean screen), and as you approach
+-- each gate "zoom" toward the two doors so you can read the choice. We do the zoom with
+-- FieldOfView only -- NOT a Scriptable camera takeover -- so the normal follow-cam stays
+-- in control and you can still run left/right and switch lanes.
+do
+	local RunService = game:GetService("RunService")
+
+	type CourseGate = {
+		z: number,
+		prompt: string,
+		a: string,
+		b: string,
+		aPct: number?,
+		bPct: number?,
+	}
+	local gates: { CourseGate } = {}
+	local active = false
+	local defaultFov = 70 -- captured from the camera on entry
+	local ZOOM_FOV = 48 -- narrower = zoomed in on the doors ahead
+
+	local function easeFov(target: number)
+		local cam = workspace.CurrentCamera
+		if cam then
+			cam.FieldOfView += (target - cam.FieldOfView) * 0.15
+		end
+	end
+
+	-- Sneak Peek perk: a small overlay that reveals the global vote % of the door ahead
+	-- BEFORE you choose. Only populated for owners (the server includes aPct in the course).
+	local peekGui = Instance.new("ScreenGui")
+	peekGui.Name = "ChoicesSneakPeek"
+	peekGui.ResetOnSpawn = false
+	peekGui.IgnoreGuiInset = true
+	peekGui.DisplayOrder = 19
+	peekGui.Enabled = false
+	peekGui.Parent = player:WaitForChild("PlayerGui")
+	local peekLbl = Instance.new("TextLabel")
+	peekLbl.AnchorPoint = Vector2.new(0.5, 0)
+	peekLbl.Position = UDim2.new(0.5, 0, 0, 160)
+	peekLbl.Size = UDim2.fromOffset(280, 34)
+	peekLbl.BackgroundColor3 = Color3.fromRGB(12, 16, 28)
+	peekLbl.BackgroundTransparency = 0.2
+	peekLbl.Font = Enum.Font.GothamBold
+	peekLbl.TextScaled = true
+	peekLbl.TextColor3 = Color3.fromRGB(200, 230, 255)
+	peekLbl.Text = ""
+	peekLbl.Parent = peekGui
+	local peekCorner = Instance.new("UICorner")
+	peekCorner.CornerRadius = UDim.new(0, 8)
+	peekCorner.Parent = peekLbl
+
+	-- Gate progress bar across the top: how far down the course you are (X / N).
+	local progGui = Instance.new("ScreenGui")
+	progGui.Name = "ChoicesProgress"
+	progGui.ResetOnSpawn = false
+	progGui.IgnoreGuiInset = true
+	progGui.DisplayOrder = 18
+	progGui.Enabled = false
+	progGui.Parent = player:WaitForChild("PlayerGui")
+	local progBack = Instance.new("Frame")
+	progBack.AnchorPoint = Vector2.new(0.5, 0)
+	progBack.Position = UDim2.new(0.5, 0, 0, 14)
+	progBack.Size = UDim2.fromOffset(340, 22)
+	progBack.BackgroundColor3 = Color3.fromRGB(14, 18, 30)
+	progBack.BackgroundTransparency = 0.25
+	progBack.Parent = progGui
+	local progBackCorner = Instance.new("UICorner")
+	progBackCorner.CornerRadius = UDim.new(1, 0)
+	progBackCorner.Parent = progBack
+	local progFill = Instance.new("Frame")
+	progFill.Size = UDim2.fromScale(0, 1)
+	progFill.BackgroundColor3 = Color3.fromRGB(90, 220, 140)
+	progFill.BorderSizePixel = 0
+	progFill.Parent = progBack
+	local progFillCorner = Instance.new("UICorner")
+	progFillCorner.CornerRadius = UDim.new(1, 0)
+	progFillCorner.Parent = progFill
+	local progLbl = Instance.new("TextLabel")
+	progLbl.Size = UDim2.fromScale(1, 1)
+	progLbl.BackgroundTransparency = 1
+	progLbl.Font = Enum.Font.GothamBold
+	progLbl.TextScaled = true
+	progLbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+	progLbl.TextStrokeTransparency = 0.5
+	progLbl.ZIndex = 2
+	progLbl.Text = ""
+	progLbl.Parent = progBack
+
+	Net.getEvent(Net.Events.ChoicesMode).OnClientEvent:Connect(function(payload: unknown)
+		local info = payload :: { active: boolean }
+		active = info.active
+		hud.setChoicesMode(active)
+		progGui.Enabled = active
+		local cam = workspace.CurrentCamera
+		if active then
+			if cam then
+				defaultFov = cam.FieldOfView -- remember the player's normal FOV
+			end
+			Sound.stopMusic() -- silence the lobby track so only the runner track plays
+			choicesMusic:Play() -- runner track on
+		else
+			gates = {}
+			peekGui.Enabled = false
+			choicesMusic:Stop() -- runner track off
+			Sound.playMusic() -- bring the lobby track back
+			cameraPunch = 0
+			if cam then
+				cam.FieldOfView = defaultFov -- restore on exit
+			end
+		end
+	end)
+
+	Net.getEvent(Net.Events.ChoicesCourse).OnClientEvent:Connect(function(payload: unknown)
+		local info = payload :: { gates: { CourseGate } }
+		gates = info.gates or {}
+	end)
+
+	RunService.RenderStepped:Connect(function()
+		if not active then
+			return
+		end
+		local char = player.Character
+		local root = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+		if not root then
+			return
+		end
+		local pz = root.Position.Z
+		-- zoom in while a gate is just ahead of us (the choice we're walking up to)
+		local near: CourseGate? = nil
+		local passed = 0
+		for _, g in gates do
+			local ahead = g.z - pz
+			if ahead <= 1 then
+				passed += 1
+			end
+			if ahead > 1 and ahead < 26 and (not near or g.z < near.z) then
+				near = g
+			end
+		end
+		-- gate progress bar
+		local n = #gates
+		if n > 0 then
+			progLbl.Text = string.format("🚪 Gate %d / %d", math.min(passed + 1, n), n)
+			progFill.Size = UDim2.fromScale(math.clamp(passed / n, 0, 1), 1)
+		end
+		-- ease toward the zoom target, punched down briefly each time you cross a door
+		easeFov((if near then ZOOM_FOV else defaultFov) - cameraPunch)
+		cameraPunch = if cameraPunch > 0.2 then cameraPunch * 0.82 else 0
+		-- Sneak Peek overlay (only if the server sent vote % for this gate)
+		if near and near.aPct then
+			peekLbl.Text = string.format(
+				"👀  🔵 %d%%   /   %d%% 🟠",
+				near.aPct,
+				near.bPct or (100 - near.aPct)
+			)
+			peekGui.Enabled = true
+		else
+			peekGui.Enabled = false
+		end
+	end)
+end
+
+-- Choices runner: the shareable end-of-run "personality card" -- how often you sided with
+-- the crowd (Sheep <-> Rebel) + your legend-collection progress. Screenshot-bait.
+do
+	type Summary = {
+		agreed: number,
+		dilemmas: number,
+		points: number,
+		legendsUnlocked: number,
+		legendsTotal: number,
+		newLegends: { string },
+		title: string?, -- a shareable earned title (e.g. "🔥 The Rebel"); server-computed
+	}
+
+	local gui = Instance.new("ScreenGui")
+	gui.Name = "ChoicesSummary"
+	gui.ResetOnSpawn = false
+	gui.IgnoreGuiInset = true
+	gui.DisplayOrder = 19
+	gui.Enabled = false
+	gui.Parent = player:WaitForChild("PlayerGui")
+
+	-- full-screen dim that also closes the card on tap (works on mobile)
+	local backdrop = Instance.new("TextButton")
+	backdrop.Size = UDim2.fromScale(1, 1)
+	backdrop.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+	backdrop.BackgroundTransparency = 0.4
+	backdrop.Text = ""
+	backdrop.AutoButtonColor = false
+	backdrop.Parent = gui
+
+	local card = Instance.new("Frame")
+	card.AnchorPoint = Vector2.new(0.5, 0.5)
+	card.Position = UDim2.fromScale(0.5, 0.5)
+	card.Size = UDim2.fromOffset(420, 440)
+	card.BackgroundColor3 = Color3.fromRGB(16, 20, 34)
+	card.BorderSizePixel = 0
+	card.Parent = backdrop
+	local cc = Instance.new("UICorner")
+	cc.CornerRadius = UDim.new(0, 18)
+	cc.Parent = card
+	local cs = Instance.new("UIStroke")
+	cs.Color = Color3.fromRGB(255, 200, 70)
+	cs.Thickness = 3
+	cs.Parent = card
+	local pad = Instance.new("UIPadding")
+	pad.PaddingTop = UDim.new(0, 18)
+	pad.PaddingLeft = UDim.new(0, 18)
+	pad.PaddingRight = UDim.new(0, 18)
+	pad.Parent = card
+	local layout = Instance.new("UIListLayout")
+	layout.Padding = UDim.new(0, 10)
+	layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	layout.SortOrder = Enum.SortOrder.LayoutOrder
+	layout.Parent = card
+
+	local function mk(order: number, height: number, font: Enum.Font, color: Color3): TextLabel
+		local t = Instance.new("TextLabel")
+		t.Size = UDim2.new(1, 0, 0, height)
+		t.BackgroundTransparency = 1
+		t.Font = font
+		t.TextScaled = true
+		t.TextWrapped = true
+		t.TextColor3 = color
+		t.LayoutOrder = order
+		t.Text = ""
+		t.Parent = card
+		return t
+	end
+	local title = mk(1, 30, Enum.Font.GothamBold, Color3.fromRGB(180, 190, 210))
+	title.Text = "RUN COMPLETE 🏆"
+	local verdict = mk(2, 64, Enum.Font.GothamBlack, Color3.fromRGB(255, 235, 150))
+	local crowdLine = mk(3, 28, Enum.Font.GothamBold, Color3.fromRGB(225, 230, 240))
+	local legendsLine = mk(4, 34, Enum.Font.GothamBold, Color3.fromRGB(120, 220, 255))
+	local newLine = mk(5, 48, Enum.Font.GothamBold, Color3.fromRGB(255, 220, 120))
+	local pointsLine = mk(6, 28, Enum.Font.GothamBold, Color3.fromRGB(225, 230, 240))
+	local shareLine = mk(7, 26, Enum.Font.Gotham, Color3.fromRGB(150, 160, 180))
+	shareLine.Text = "📸 Screenshot to share your result!"
+
+	local function verdictFor(rebel: number): (string, Color3)
+		if rebel >= 70 then
+			return "🔥 TOTAL REBEL", Color3.fromRGB(255, 120, 90)
+		elseif rebel >= 55 then
+			return "😎 FREE THINKER", Color3.fromRGB(255, 180, 90)
+		elseif rebel >= 45 then
+			return "⚖️ PERFECTLY BALANCED", Color3.fromRGB(255, 235, 150)
+		elseif rebel >= 30 then
+			return "🙂 MOSTLY BASIC", Color3.fromRGB(160, 220, 255)
+		else
+			return "🐑 TOTAL SHEEP", Color3.fromRGB(150, 200, 255)
+		end
+	end
+
+	local token = 0
+	local function close()
+		gui.Enabled = false
+	end
+	backdrop.Activated:Connect(close)
+
+	Net.getEvent(Net.Events.ChoicesSummary).OnClientEvent:Connect(function(payload: unknown)
+		local s = payload :: Summary
+		token += 1
+		local mine = token
+		local crowd = if s.dilemmas > 0 then math.floor(s.agreed / s.dilemmas * 100 + 0.5) else 50
+		local rebel = 100 - crowd
+		local label, color = verdictFor(rebel)
+		verdict.Text = s.title or label -- the earned title is the shareable headline
+		verdict.TextColor3 = color
+		crowdLine.Text =
+			string.format("You sided with the crowd %d/%d  (%d%%)", s.agreed, s.dilemmas, crowd)
+		legendsLine.Text =
+			string.format("⭐ Legends collected: %d / %d", s.legendsUnlocked, s.legendsTotal)
+		if #s.newLegends > 0 then
+			newLine.Text = "🆕 New: " .. table.concat(s.newLegends, ", ")
+			choicesSfx(Config.Sounds.LegendChime) -- celebrate a fresh unlock
+		else
+			newLine.Text = ""
+		end
+		pointsLine.Text = string.format("🏆 %d points this run", s.points)
+		gui.Enabled = true
+		card.Size = UDim2.fromOffset(380, 440)
+		TweenService
+			:Create(card, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+				Size = UDim2.fromOffset(420, 440),
+			})
+			:Play()
+		task.delay(8, function()
+			if token == mine then
+				close()
+			end
+		end)
+	end)
+end
+
+-- Choices runner: a browsable "Become a Legend" collection + a button showing X/Y progress.
+-- Reads the replicated profile (LegendsUnlocked) and ChoiceBank -- no extra server calls.
+do
+	local ChoiceBank = require(Shared:WaitForChild("ChoiceBank"))
+	local total = ChoiceBank.legendCount()
+	local unlocked: { [string]: boolean } = {}
+
+	local function countUnlocked(): number
+		local n = 0
+		for _ in unlocked do
+			n += 1
+		end
+		return n
+	end
+
+	-- floating open button (left edge, clear of the mobile move/jump controls)
+	local btnGui = Instance.new("ScreenGui")
+	btnGui.Name = "LegendsButton"
+	btnGui.ResetOnSpawn = false
+	btnGui.DisplayOrder = 12
+	btnGui.Parent = player:WaitForChild("PlayerGui")
+	local openBtn = Instance.new("TextButton")
+	openBtn.AnchorPoint = Vector2.new(0, 0.5)
+	openBtn.Position = UDim2.new(0, 8, 0.4, 0)
+	openBtn.Size = UDim2.fromOffset(118, 42)
+	openBtn.BackgroundColor3 = Color3.fromRGB(28, 34, 54)
+	openBtn.Font = Enum.Font.GothamBold
+	openBtn.TextScaled = true
+	openBtn.TextColor3 = Color3.fromRGB(255, 230, 140)
+	openBtn.Text = "🏅 0/" .. total
+	openBtn.Parent = btnGui
+	local obc = Instance.new("UICorner")
+	obc.CornerRadius = UDim.new(0, 10)
+	obc.Parent = openBtn
+	local obp = Instance.new("UIPadding")
+	obp.PaddingLeft = UDim.new(0, 8)
+	obp.PaddingRight = UDim.new(0, 8)
+	obp.PaddingTop = UDim.new(0, 7)
+	obp.PaddingBottom = UDim.new(0, 7)
+	obp.Parent = openBtn
+
+	-- the collection modal
+	local panelGui = Instance.new("ScreenGui")
+	panelGui.Name = "LegendsPanel"
+	panelGui.ResetOnSpawn = false
+	panelGui.IgnoreGuiInset = true
+	panelGui.DisplayOrder = 17
+	panelGui.Enabled = false
+	panelGui.Parent = player:WaitForChild("PlayerGui")
+	local backdrop = Instance.new("TextButton")
+	backdrop.Size = UDim2.fromScale(1, 1)
+	backdrop.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+	backdrop.BackgroundTransparency = 0.4
+	backdrop.Text = ""
+	backdrop.AutoButtonColor = false
+	backdrop.Parent = panelGui
+	local card = Instance.new("Frame")
+	card.AnchorPoint = Vector2.new(0.5, 0.5)
+	card.Position = UDim2.fromScale(0.5, 0.5)
+	card.Size = UDim2.fromOffset(470, 470)
+	card.BackgroundColor3 = Color3.fromRGB(16, 20, 34)
+	card.BorderSizePixel = 0
+	card.Parent = backdrop
+	local cardCorner = Instance.new("UICorner")
+	cardCorner.CornerRadius = UDim.new(0, 18)
+	cardCorner.Parent = card
+	local cardStroke = Instance.new("UIStroke")
+	cardStroke.Color = Color3.fromRGB(255, 200, 70)
+	cardStroke.Thickness = 3
+	cardStroke.Parent = card
+	local titleLbl = Instance.new("TextLabel")
+	titleLbl.Size = UDim2.new(1, -24, 0, 34)
+	titleLbl.Position = UDim2.fromOffset(12, 12)
+	titleLbl.BackgroundTransparency = 1
+	titleLbl.Font = Enum.Font.GothamBlack
+	titleLbl.TextScaled = true
+	titleLbl.TextColor3 = Color3.fromRGB(255, 235, 150)
+	titleLbl.Text = "🏅 BECOME A LEGEND"
+	titleLbl.Parent = card
+	local subLbl = Instance.new("TextLabel")
+	subLbl.Size = UDim2.new(1, -24, 0, 22)
+	subLbl.Position = UDim2.fromOffset(12, 48)
+	subLbl.BackgroundTransparency = 1
+	subLbl.Font = Enum.Font.GothamBold
+	subLbl.TextScaled = true
+	subLbl.TextColor3 = Color3.fromRGB(180, 190, 210)
+	subLbl.Text = ""
+	subLbl.Parent = card
+	local scroller = Instance.new("ScrollingFrame")
+	scroller.Size = UDim2.new(1, -24, 1, -120)
+	scroller.Position = UDim2.fromOffset(12, 78)
+	scroller.BackgroundTransparency = 1
+	scroller.BorderSizePixel = 0
+	scroller.ScrollBarThickness = 5
+	scroller.CanvasSize = UDim2.new()
+	scroller.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	scroller.Parent = card
+	local grid = Instance.new("UIGridLayout")
+	grid.CellSize = UDim2.fromOffset(102, 92)
+	grid.CellPadding = UDim2.fromOffset(8, 8)
+	grid.SortOrder = Enum.SortOrder.LayoutOrder
+	grid.Parent = scroller
+	local hint = Instance.new("TextLabel")
+	hint.AnchorPoint = Vector2.new(0.5, 1)
+	hint.Position = UDim2.new(0.5, 0, 1, -10)
+	hint.Size = UDim2.new(1, -24, 0, 22)
+	hint.BackgroundTransparency = 1
+	hint.Font = Enum.Font.Gotham
+	hint.TextScaled = true
+	hint.TextColor3 = Color3.fromRGB(150, 160, 180)
+	hint.Text = "Run the Choices and pick a legend's door to unlock it!"
+	hint.Parent = card
+
+	type Cell = { swatch: Frame, name: TextLabel, lock: TextLabel }
+	local cells: { [string]: Cell } = {}
+	for order, id in ChoiceBank.LegendOrder do
+		local cell = Instance.new("Frame")
+		cell.BackgroundColor3 = Color3.fromRGB(26, 30, 46)
+		cell.BorderSizePixel = 0
+		cell.LayoutOrder = order
+		cell.Parent = scroller
+		local cco = Instance.new("UICorner")
+		cco.CornerRadius = UDim.new(0, 10)
+		cco.Parent = cell
+		local swatch = Instance.new("Frame")
+		swatch.AnchorPoint = Vector2.new(0.5, 0)
+		swatch.Position = UDim2.new(0.5, 0, 0, 8)
+		swatch.Size = UDim2.fromOffset(44, 44)
+		swatch.BackgroundColor3 = Color3.fromRGB(40, 44, 58)
+		swatch.BorderSizePixel = 0
+		swatch.Parent = cell
+		local sco = Instance.new("UICorner")
+		sco.CornerRadius = UDim.new(1, 0)
+		sco.Parent = swatch
+		local lock = Instance.new("TextLabel")
+		lock.Size = UDim2.fromScale(1, 1)
+		lock.BackgroundTransparency = 1
+		lock.Font = Enum.Font.GothamBold
+		lock.TextScaled = true
+		lock.Text = "🔒"
+		lock.Parent = swatch
+		local name = Instance.new("TextLabel")
+		name.AnchorPoint = Vector2.new(0.5, 1)
+		name.Position = UDim2.new(0.5, 0, 1, -6)
+		name.Size = UDim2.new(1, -8, 0, 30)
+		name.BackgroundTransparency = 1
+		name.Font = Enum.Font.GothamBold
+		name.TextScaled = true
+		name.TextWrapped = true
+		name.TextColor3 = Color3.fromRGB(140, 150, 170)
+		name.Text = "???"
+		name.Parent = cell
+		cells[id] = { swatch = swatch, name = name, lock = lock }
+	end
+
+	local function refresh()
+		local have = countUnlocked()
+		openBtn.Text = string.format("🏅 %d/%d", have, total)
+		subLbl.Text = string.format("Collected %d of %d legends", have, total)
+		for id, c in cells do
+			local un = unlocked[id] == true
+			c.swatch.BackgroundColor3 = if un
+				then ChoiceBank.LegendColor[id] or Color3.fromRGB(120, 120, 120)
+				else Color3.fromRGB(40, 44, 58)
+			c.lock.Visible = not un
+			c.name.Text = if un then ChoiceBank.Legends[id] else "???"
+			c.name.TextColor3 = if un
+				then Color3.fromRGB(255, 255, 255)
+				else Color3.fromRGB(120, 128, 145)
+		end
+	end
+
+	openBtn.Activated:Connect(function()
+		panelGui.Enabled = true
+		refresh()
+	end)
+	backdrop.Activated:Connect(function()
+		panelGui.Enabled = false
+	end)
+
+	Net.getEvent(Net.Events.ProfileUpdate).OnClientEvent:Connect(function(payload: unknown)
+		local data = payload :: { LegendsUnlocked: { [string]: boolean }? }
+		unlocked = data.LegendsUnlocked or {}
+		refresh()
+	end)
+
+	-- hide the button while running a course (the screen is meant to be clean there)
+	Net.getEvent(Net.Events.ChoicesMode).OnClientEvent:Connect(function(payload: unknown)
+		local info = payload :: { active: boolean }
+		btnGui.Enabled = not info.active
+		if info.active then
+			panelGui.Enabled = false
+		end
+	end)
+
+	refresh()
+end
+
+-- Treadmill "Training Grounds": a small "+coins / +XP" pop on each training tick.
+do
+	local gui = Instance.new("ScreenGui")
+	gui.Name = "TrainingTicker"
+	gui.ResetOnSpawn = false
+	gui.DisplayOrder = 16
+	gui.Enabled = false
+	gui.Parent = player:WaitForChild("PlayerGui")
+	local lbl = Instance.new("TextLabel")
+	lbl.AnchorPoint = Vector2.new(0.5, 0)
+	lbl.Position = UDim2.new(0.5, 0, 0, 120)
+	lbl.Size = UDim2.fromOffset(300, 40)
+	lbl.BackgroundColor3 = Color3.fromRGB(16, 24, 18)
+	lbl.BackgroundTransparency = 0.2
+	lbl.Font = Enum.Font.GothamBold
+	lbl.TextScaled = true
+	lbl.TextColor3 = Color3.fromRGB(150, 245, 170)
+	lbl.Text = ""
+	lbl.Parent = gui
+	local tc = Instance.new("UICorner")
+	tc.CornerRadius = UDim.new(0, 10)
+	tc.Parent = lbl
+
+	local token = 0
+	Net.getEvent(Net.Events.TreadmillTick).OnClientEvent:Connect(function(payload: unknown)
+		local t = payload :: { coins: number, xp: number, energy: boolean }
+		token += 1
+		local mine = token
+		lbl.Text =
+			string.format("%s🏃 +%d 💰  +%d XP", if t.energy then "⚡ " else "", t.coins, t.xp)
+		gui.Enabled = true
+		task.delay(1.6, function()
+			if token == mine then
+				gui.Enabled = false
+			end
+		end)
+	end)
+end
+
+-- Choices runner: per-player WEATHER + one-shot sounds from a door's effect. Reuses the
+-- "only this client's Lighting changes" trick so the shared course can show YOUR rain while
+-- another runner has their heatwave. "clear" (sent at the finish) reverts everything.
+do
+	local Lighting = game:GetService("Lighting")
+	local RunService = game:GetService("RunService")
+	local SoundService = game:GetService("SoundService")
+
+	local cc: ColorCorrectionEffect? = nil
+	local weatherPart: BasePart? = nil
+	local follow: RBXScriptConnection? = nil
+	local addedSky: Instance? = nil -- the lava sky we swapped in (heat)
+	local hiddenSky: Instance? = nil -- the stadium sky we parked while heat is on
+	local stormToken = 0
+	local savedFogEnd, savedFogColor = Lighting.FogEnd, Lighting.FogColor
+
+	local function clearWeather()
+		stormToken += 1
+		if cc then
+			cc:Destroy()
+			cc = nil
+		end
+		if weatherPart then
+			weatherPart:Destroy()
+			weatherPart = nil
+		end
+		if follow then
+			follow:Disconnect()
+			follow = nil
+		end
+		if addedSky then
+			addedSky:Destroy()
+			addedSky = nil
+		end
+		if hiddenSky then
+			hiddenSky.Parent = Lighting -- restore the stadium sky
+			hiddenSky = nil
+		end
+		Lighting.FogEnd, Lighting.FogColor = savedFogEnd, savedFogColor
+	end
+
+	local function rainEmitter(): ParticleEmitter
+		local part = Instance.new("Part")
+		part.Anchored = true
+		part.CanCollide = false
+		part.CanQuery = false
+		part.Transparency = 1
+		part.Size = Vector3.new(46, 1, 46)
+		part.Parent = workspace
+		weatherPart = part
+		follow = RunService.RenderStepped:Connect(function()
+			local ch = player.Character
+			local hrp = ch and ch:FindFirstChild("HumanoidRootPart")
+			if hrp and weatherPart then
+				weatherPart.CFrame = CFrame.new((hrp :: BasePart).Position + Vector3.new(0, 26, 0))
+			end
+		end)
+		local em = Instance.new("ParticleEmitter")
+		em.EmissionDirection = Enum.NormalId.Bottom
+		em.Parent = part
+		return em
+	end
+
+	Net.getEvent(Net.Events.ChoicesEffect).OnClientEvent:Connect(function(payload: unknown)
+		local info = payload :: { weather: string?, sound: string? }
+		if info.sound and info.sound ~= "" then
+			local s = Instance.new("Sound")
+			s.SoundId = info.sound
+			s.Volume = 0.6
+			s.Parent = SoundService
+			s:Play()
+			Debris:AddItem(s, 6)
+		end
+		local w = info.weather
+		clearWeather()
+		if not w or w == "clear" then
+			return
+		end
+		cc = Instance.new("ColorCorrectionEffect")
+		cc.Parent = Lighting
+		local c = cc :: ColorCorrectionEffect
+		if w == "rain" then
+			c.TintColor, c.Brightness, c.Contrast = Color3.fromRGB(150, 175, 200), -0.06, -0.05
+			Lighting.FogColor, Lighting.FogEnd = Color3.fromRGB(120, 135, 150), 400
+			local em = rainEmitter()
+			local fx = ReplicatedStorage:FindFirstChild("ChoicesRainFX")
+			if fx and weatherPart then
+				-- real "Realistic Rain" particles
+				em:Destroy()
+				for _, e in fx:GetChildren() do
+					if e:IsA("ParticleEmitter") then
+						e:Clone().Parent = weatherPart
+					end
+				end
+			else
+				em.Color = ColorSequence.new(Color3.fromRGB(170, 195, 225))
+				em.Rate, em.Lifetime, em.Speed =
+					320, NumberRange.new(0.5, 0.7), NumberRange.new(90, 110)
+				em.Acceleration, em.Size = Vector3.new(0, -160, 0), NumberSequence.new(0.22)
+				em.Transparency, em.SpreadAngle = NumberSequence.new(0.3), Vector2.new(7, 7)
+			end
+		elseif w == "heat" then
+			c.TintColor, c.Brightness, c.Saturation = Color3.fromRGB(255, 200, 150), 0.08, 0.12
+			local lava = ReplicatedStorage:FindFirstChild("ChoicesLavaSky")
+			if lava then
+				-- swap THIS client's sky to the lava skybox (stadium sky parked + restored)
+				hiddenSky = Lighting:FindFirstChildOfClass("Sky")
+				if hiddenSky then
+					hiddenSky.Parent = nil
+				end
+				addedSky = lava:Clone()
+				addedSky.Parent = Lighting
+			end
+		elseif w == "fog" then
+			c.TintColor, c.Brightness = Color3.fromRGB(190, 195, 205), -0.03
+			Lighting.FogColor, Lighting.FogEnd = Color3.fromRGB(180, 185, 195), 130
+		elseif w == "night" then
+			c.TintColor, c.Brightness, c.Contrast = Color3.fromRGB(120, 135, 185), -0.18, 0.08
+			Lighting.FogColor, Lighting.FogEnd = Color3.fromRGB(20, 26, 45), 500
+		elseif w == "snow" then
+			c.TintColor, c.Brightness = Color3.fromRGB(205, 218, 238), 0.04
+			Lighting.FogColor, Lighting.FogEnd = Color3.fromRGB(210, 220, 235), 600
+			local em = rainEmitter()
+			em.Color = ColorSequence.new(Color3.fromRGB(255, 255, 255))
+			em.Rate, em.Lifetime, em.Speed = 120, NumberRange.new(2, 3), NumberRange.new(6, 12)
+			em.Acceleration, em.Size = Vector3.new(2, -10, 0), NumberSequence.new(0.5)
+			em.SpreadAngle = Vector2.new(25, 25)
+		elseif w == "storm" then
+			c.TintColor, c.Brightness = Color3.fromRGB(130, 145, 170), -0.12
+			Lighting.FogColor, Lighting.FogEnd = Color3.fromRGB(80, 90, 110), 350
+			local em = rainEmitter()
+			em.Color = ColorSequence.new(Color3.fromRGB(160, 180, 210))
+			em.Rate, em.Lifetime, em.Speed =
+				380, NumberRange.new(0.4, 0.6), NumberRange.new(110, 130)
+			em.Acceleration, em.Size = Vector3.new(-20, -190, 0), NumberSequence.new(0.22)
+			stormToken += 1
+			local mine = stormToken
+			task.spawn(function()
+				while stormToken == mine and cc do
+					task.wait(math.random(3, 7))
+					if stormToken == mine and cc then
+						local b = (cc :: ColorCorrectionEffect).Brightness;
+						(cc :: ColorCorrectionEffect).Brightness = 0.7
+						task.wait(0.08)
+						if stormToken == mine and cc then
+							(cc :: ColorCorrectionEffect).Brightness = b
+						end
+					end
+				end
+			end)
+		end
+	end)
+end
 
 Net.getEvent(Net.Events.EmoteShown).OnClientEvent:Connect(function(payload: unknown)
 	local info = payload :: { userId: number, emoji: string }
 	showEmote(info.userId, info.emoji)
 end)
 
+-- Walk-Off 1v1 queue state (mirrors inQueue for the main queue).
+local inWalkOffQueue = false
+local joinWalkOffQueue = Net.getEvent(Net.Events.JoinWalkOffQueue)
+local leaveWalkOffQueue = Net.getEvent(Net.Events.LeaveWalkOffQueue)
+
+hud.onJoinWalkOff = function()
+	if inWalkOffQueue then
+		leaveWalkOffQueue:FireServer()
+	else
+		joinWalkOffQueue:FireServer()
+	end
+end
+
+Net.getEvent(Net.Events.WalkOffQueueUpdate).OnClientEvent:Connect(function(payload: unknown)
+	local info = payload :: { inQueue: boolean, size: number }
+	inWalkOffQueue = info.inQueue
+	hud.setWalkOffQueue(info.inQueue, info.size)
+end)
+
+-- Gauntlet: the server fires GauntletStart for each shot (same shape as
+-- RoundStartInfo + isGauntlet=true). RoundResult and MatchOver are shared.
+-- GauntletStart is handled identically to RoundStart on the client — the
+-- keeper-view camera + dive UI activate automatically via role="Keeper".
+Net.getEvent(Net.Events.GauntletStart).OnClientEvent:Connect(function(payload: unknown)
+	local info = payload :: Types.RoundStartInfo
+	Warmup.cancel()
+	Sound.stopMusic()
+	Camera.toMatch(true) -- always keeper view in the gauntlet
+	hud.startRound(info)
+end)
+
+Net.getEvent(Net.Events.GauntletOver).OnClientEvent:Connect(function(payload: unknown)
+	local info = payload :: { saves: number, totalShots: number, reward: number }
+	hud.notify(
+		string.format(
+			"Gauntlet done! %d / %d saves  •  +%d coins",
+			info.saves,
+			info.totalShots,
+			info.reward
+		)
+	)
+end)
+
+-- Trivia Kiosk: show question panel, wire answer button, handle result + over.
+local triviaSubmit = Net.getEvent(Net.Events.TriviaSubmit)
+
+hud.onTriviaAnswer = function(answer: string)
+	triviaSubmit:FireServer({ answer = answer })
+end
+
+Net.getEvent(Net.Events.TriviaQuestion).OnClientEvent:Connect(function(payload: unknown)
+	local info = payload :: UI.TriviaQuestionInfo
+	hud.showTriviaQuestion(info)
+end)
+
+Net.getEvent(Net.Events.TriviaResult).OnClientEvent:Connect(function(payload: unknown)
+	local info = payload :: {
+		correct: boolean,
+		correctAnswer: string,
+		timedOut: boolean,
+		yourScore: number?,
+		oppScore: number?,
+	}
+	hud.showTriviaResult(
+		info.correct,
+		info.correctAnswer,
+		info.timedOut,
+		info.yourScore,
+		info.oppScore
+	)
+end)
+
+Net.getEvent(Net.Events.TriviaOver).OnClientEvent:Connect(function(payload: unknown)
+	local info = payload :: {
+		isDuel: boolean,
+		correct: number,
+		total: number,
+		totalCoins: number,
+		won: boolean?,
+		tie: boolean?,
+		yourScore: number?,
+		oppScore: number?,
+		opponentName: string?,
+	}
+	hud.hideTriviaPanel()
+	if info.isDuel then
+		local opp = info.opponentName or "rival"
+		local headline
+		if info.tie then
+			headline = string.format("🤝 Trivia TIE vs %s", opp)
+		elseif info.won then
+			headline = string.format("🏆 Trivia WIN vs %s!", opp)
+		else
+			headline = string.format("Trivia: lost to %s", opp)
+		end
+		hud.notify(
+			string.format(
+				"%s   %d–%d  •  +%d coins",
+				headline,
+				info.yourScore or 0,
+				info.oppScore or 0,
+				info.totalCoins
+			)
+		)
+	else
+		local perfect = info.correct == info.total
+		hud.notify(
+			string.format(
+				"Trivia done!  %d / %d correct%s  •  +%d coins",
+				info.correct,
+				info.total,
+				if perfect then "  PERFECT!" else "",
+				info.totalCoins
+			)
+		)
+	end
+end)
+
+-- Free Kick Challenge: FreekickStart fires before each RoundStart so the
+-- client can show which target zone to aim at as a notify toast.
+-- RoundStart/RoundResult/MatchOver reuse the existing handlers unchanged.
+Net.getEvent(Net.Events.FreekickStart).OnClientEvent:Connect(function(payload: unknown)
+	local info =
+		payload :: { shotIndex: number, totalShots: number, targetLabel: string, deadline: number }
+	Warmup.cancel()
+	Sound.stopMusic()
+	Camera.toMatch(false) -- shooter view
+	hud.notify(
+		string.format(
+			"Shot %d / %d  —  AIM %s!",
+			info.shotIndex,
+			info.totalShots,
+			info.targetLabel
+		)
+	)
+end)
+
+Net.getEvent(Net.Events.FreekickOver).OnClientEvent:Connect(function(payload: unknown)
+	local info = payload :: { hits: number, totalShots: number, totalCoins: number }
+	local perfect = info.hits == info.totalShots
+	hud.notify(
+		string.format(
+			"Free Kick done!  %d / %d targets%s  •  +%d coins",
+			info.hits,
+			info.totalShots,
+			if perfect then "  PERFECT!" else "",
+			info.totalCoins
+		)
+	)
+end)
+
+-- Juggling Pitch: show minigame UI, relay taps, handle result.
+local juggleHit = Net.getEvent(Net.Events.JuggleHit)
+
+Net.getEvent(Net.Events.JuggleStart).OnClientEvent:Connect(function(payload: unknown)
+	local info = payload :: { duration: number, startTime: number, freq: number }
+	Juggle.show(info, function()
+		if Juggle.active then
+			juggleHit:FireServer()
+		end
+	end)
+end)
+
+Net.getEvent(Net.Events.JuggleUpdate).OnClientEvent:Connect(function(payload: unknown)
+	local info = payload :: { count: number, streak: number, freq: number }
+	Juggle.update(info)
+end)
+
+Net.getEvent(Net.Events.JuggleOver).OnClientEvent:Connect(function(payload: unknown)
+	local info = payload :: { count: number, totalCoins: number }
+	Juggle.hide()
+	hud.notify(
+		string.format("Juggling done!  %d juggles  •  +%d coins", info.count, info.totalCoins)
+	)
+end)
+
+-- Season Pass: update local HUD state whenever tier progresses.
+Net.getEvent(Net.Events.SeasonUpdate).OnClientEvent:Connect(function(payload: unknown)
+	local info = payload :: {
+		SeasonXP: number,
+		SeasonTierGranted: number,
+		HasPremiumPass: boolean,
+		EquippedTitle: string,
+	}
+	hud.setSeasonPass(info)
+end)
+
 hud.showLobby()
 Camera.toLobby() -- start on the default walk-around camera in the plaza
-Warmup.start() -- enable the practice-range prompt
+Warmup.start(hud) -- enable the practice-range prompt (hud lets it hide the lobby)
 Hub.start(hud) -- photo booth, stalls, prediction kiosk prompts
 DecorFX.start()
 Sound.startCrowd() -- stadium ambience loop

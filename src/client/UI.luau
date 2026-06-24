@@ -21,12 +21,81 @@ local Theme = require(Shared:WaitForChild("Theme"))
 
 local Sound = require(script.Parent:WaitForChild("Sound"))
 local Venue = require(script.Parent:WaitForChild("Venue"))
+local TriviaPanel = require(script.Parent:WaitForChild("TriviaPanel"))
+local SeasonPassPanel = require(script.Parent:WaitForChild("SeasonPassPanel"))
+
+-- Mobile layout: the bottom corners are taken by the jump button + movement thumbstick,
+-- so on touch the bottom button row insets/compresses away from them (see menuButton).
+-- The top no longer needs a manual shift: the HUD ScreenGui uses CoreUISafeInsets, which
+-- already keeps everything clear of the topbar/notch -- so TOP_INSET stays 0 (kept as a
+-- no-op term in the top elements' positions). (Module-level so the 200-local builder pays
+-- nothing for them.)
+local IS_TOUCH = UserInputService.TouchEnabled and not UserInputService.MouseEnabled
+local TOP_INSET = 0
 
 local UI = {}
 
 local ACCENT = Theme.Accent
 local PANEL = Theme.Panel
 local POWER_SPEED = 1.4 -- full sweeps of the power bar per second
+
+-- Turn a resolved shot into a punchy, CONTEXT-AWARE verdict (a big word + a small
+-- teaching line) from the geometry alone. This makes the hidden skill model legible
+-- -- players learn WHY they scored/missed -- and gives every shot personality.
+-- Pure + module-level (no UI deps), so it stays out of the 200-local HUD builder.
+local function deriveVerdict(info: Types.RoundResultInfo): (string, string)
+	local sx, sy = info.shotX, info.shotY
+	local kx = info.keeperX
+	local topShot = sy >= 0.72
+	local corner = math.abs(sx) >= 0.6
+	local central = math.abs(sx) <= 0.28
+	local keeperCommitted = math.abs(kx) >= 0.35
+	local wrongFooted = keeperCommitted and (kx * sx) < -0.04 -- keeper went the other way
+	local readYou = keeperCommitted and (kx * sx) > 0.04 -- keeper guessed your side
+	local bigCurve = math.abs(info.curve) >= 0.45
+
+	if info.outcome == "Goal" then
+		if bigCurve and corner then
+			return "GOLAZO!", "Bent into the top corner"
+		elseif wrongFooted then
+			return "WRONG-FOOTED!", "Sent the keeper the wrong way"
+		elseif topShot and corner then
+			return "TOP BINS!", "Upper 90 — unsavable"
+		elseif corner then
+			return "TUCKED AWAY!", "Buried in the corner"
+		elseif central and keeperCommitted then
+			return "CHEEKY!", "Straight down the middle"
+		elseif topShot then
+			return "ROOFED IT!", "Lifted over the keeper"
+		end
+		return "GOAL!", "Clinical finish"
+	elseif info.outcome == "Save" then
+		if readYou then
+			return "READ IT!", "Keeper guessed your side"
+		elseif corner then
+			return "FINGERTIPS!", "Somehow clawed out of the corner"
+		elseif central then
+			return "RIGHT AT 'EM", "Too close to the keeper"
+		end
+		return "DENIED!", "Huge save"
+	else
+		if sy > 1 then
+			return "OVER THE BAR!", "Too much power on it"
+		elseif math.abs(sx) > 1 then
+			return "WIDE!", "Dragged past the post"
+		elseif bigCurve then
+			return "CURLED WIDE", "Over-bent it"
+		end
+		return "OFF TARGET!", "Inches away"
+	end
+end
+
+-- The trivia panel now lives in TriviaPanel.luau; re-export its question shape so
+-- existing references (UI.TriviaQuestionInfo) keep working.
+export type TriviaQuestionInfo = TriviaPanel.QuestionInfo
+
+-- The season pass now lives in SeasonPassPanel.luau; re-export its info shape.
+export type SeasonPassInfo = SeasonPassPanel.Info
 
 export type Hud = {
 	onQueueButton: (() -> ())?,
@@ -36,6 +105,8 @@ export type Hud = {
 	onEquip: ((id: string) -> ())?,
 	onBuyCoins: ((productId: number) -> ())?,
 	onBuyDoubler: (() -> ())?,
+	onBuySeasonPass: (() -> ())?,
+	onJoinWalkOff: (() -> ())?,
 	onChallenge: ((targetUserId: number) -> ())?,
 	onChallengeRespond: ((fromUserId: number, accept: boolean) -> ())?,
 	onEmote: ((emoji: string) -> ())?,
@@ -47,12 +118,26 @@ export type Hud = {
 	setProfile: (data: Types.ProfileData) -> (),
 	setLeaderboard: (data: Types.LeaderboardData) -> (),
 	setMonetization: (info: Types.MonetizationInfo) -> (),
+	setSeasonPass: (info: SeasonPassInfo) -> (),
+	setWalkOffQueue: (inQueue: boolean, size: number) -> (),
 	notify: (message: string) -> (),
 	showLobby: () -> (),
+	setLobbyVisible: (visible: boolean) -> (),
 	setQueue: (inQueue: boolean, size: number) -> (),
 	startRound: (info: Types.RoundStartInfo) -> (),
 	showRoundResult: (info: Types.RoundResultInfo) -> (),
 	showMatchOver: (info: Types.MatchOverInfo) -> (),
+	onTriviaAnswer: ((answer: string) -> ())?,
+	showTriviaQuestion: (info: TriviaQuestionInfo) -> (),
+	showTriviaResult: (
+		correct: boolean,
+		correctAnswer: string,
+		timedOut: boolean,
+		yourScore: number?,
+		oppScore: number?
+	) -> (),
+	hideTriviaPanel: () -> (),
+	setChoicesMode: (active: boolean) -> (),
 }
 
 local function corner(parent: Instance, radius: number?)
@@ -166,6 +251,16 @@ end
 -- Consistent panel chrome: an accent underline bar beneath a (left-aligned) title
 -- and a polished close button.
 local function decoratePanel(panel: GuiObject, title: TextLabel, close: GuiButton?)
+	-- These panels ignore the GUI inset (to fill the screen), so their titles would
+	-- otherwise render BEHIND the Roblox topbar (menu/chat/mic/account buttons). A
+	-- top inset pushes all panel content clear of it. One source of truth for every
+	-- panel that calls decoratePanel.
+	if not panel:FindFirstChildOfClass("UIPadding") then
+		local pad = Instance.new("UIPadding")
+		pad.PaddingTop = UDim.new(0, 48)
+		pad.Parent = panel
+	end
+
 	local bar = Instance.new("Frame")
 	bar.Size = UDim2.fromScale(0.14, 0.007)
 	bar.Position =
@@ -204,6 +299,9 @@ function UI.create(player: Player): Hud
 		onEquip = nil :: ((id: string) -> ())?,
 		onBuyCoins = nil :: ((productId: number) -> ())?,
 		onBuyDoubler = nil :: (() -> ())?,
+		onBuySeasonPass = nil :: (() -> ())?,
+		onJoinWalkOff = nil :: (() -> ())?,
+		onTriviaAnswer = nil :: ((answer: string) -> ())?,
 		onChallenge = nil :: ((targetUserId: number) -> ())?,
 		onChallengeRespond = nil :: ((fromUserId: number, accept: boolean) -> ())?,
 		onEmote = nil :: ((emoji: string) -> ())?,
@@ -213,7 +311,187 @@ function UI.create(player: Player): Hud
 	screen.Name = "PenaltyKingsHud"
 	screen.ResetOnSpawn = false
 	screen.IgnoreGuiInset = true
+	-- Global ZIndex behaviour (the default this UI is built around: button shadows
+	-- sit at widget.ZIndex-1 to render BEHIND, overlays use explicit ZIndex). Panels
+	-- that raise their own ZIndex must give their content an even higher ZIndex so
+	-- the panel background doesn't paint over it (see triviaPanel below).
+	screen.ZIndexBehavior = Enum.ZIndexBehavior.Global
 	screen.Parent = player:WaitForChild("PlayerGui")
+
+	-- ===================== CELEBRATION OVERLAY =======================
+	-- A dedicated full-screen layer for the big "moment": a colour band sweeps
+	-- across and a huge word slams in (GOAL! / GREAT SAVE!), then sweeps out.
+	-- Lives above the ShotAnimator flash (DisplayOrder 5) but below loading.
+	--
+	-- Wrapped in a `do` block: UI.create is a huge function near Luau's 200-local
+	-- limit, so we scope the ~dozen build-time locals here and let them release at
+	-- `end`. Only the two closures below survive (captured GUI refs as upvalues).
+	local playCelebration: (kind: string) -> ()
+	local dropConfetti: () -> ()
+	do
+		local celebGui = Instance.new("ScreenGui")
+		celebGui.Name = "PenaltyKingsCelebrate"
+		celebGui.ResetOnSpawn = false
+		celebGui.IgnoreGuiInset = true
+		celebGui.DisplayOrder = 8
+		celebGui.Parent = player:WaitForChild("PlayerGui")
+
+		-- The diagonal colour band the word rides on.
+		local celebBand = Instance.new("Frame")
+		celebBand.Name = "Band"
+		celebBand.Size = UDim2.fromScale(1.4, 0.30)
+		celebBand.Position = UDim2.fromScale(-1.6, 0.34)
+		celebBand.AnchorPoint = Vector2.new(0, 0)
+		celebBand.Rotation = -4
+		celebBand.BackgroundColor3 = Theme.Accent
+		celebBand.BorderSizePixel = 0
+		celebBand.Visible = false
+		celebBand.Parent = celebGui
+		local celebGrad = Instance.new("UIGradient")
+		celebGrad.Color = ColorSequence.new(Theme.AccentDark, Theme.Accent)
+		celebGrad.Rotation = 8
+		celebGrad.Parent = celebBand
+
+		-- The big word.
+		local celebWord = Instance.new("TextLabel")
+		celebWord.Name = "Word"
+		celebWord.Size = UDim2.fromScale(1, 0.62)
+		celebWord.Position = UDim2.fromScale(0, 0.19)
+		celebWord.BackgroundTransparency = 1
+		celebWord.Font = Enum.Font.GothamBlack
+		celebWord.TextScaled = true
+		celebWord.TextColor3 = Color3.fromRGB(255, 255, 255)
+		celebWord.Text = "GOAL!"
+		celebWord.Parent = celebBand
+		local celebWordStroke = Instance.new("UIStroke")
+		celebWordStroke.Color = Color3.fromRGB(15, 20, 28)
+		celebWordStroke.Thickness = 4
+		celebWordStroke.Parent = celebWord
+
+		-- The smaller flavour line under the word.
+		local celebSub = Instance.new("TextLabel")
+		celebSub.Name = "Sub"
+		celebSub.Size = UDim2.fromScale(1, 0.18)
+		celebSub.Position = UDim2.fromScale(0, 0.80)
+		celebSub.BackgroundTransparency = 1
+		celebSub.Font = Enum.Font.GothamBold
+		celebSub.TextScaled = true
+		celebSub.TextColor3 = Color3.fromRGB(20, 28, 36)
+		celebSub.Text = ""
+		celebSub.Parent = celebBand
+
+		-- Random flavour lines keep the moment fresh on repeat goals/saves.
+		local GOAL_LINES = {
+			"GOLAZO!",
+			"TOP BINS!",
+			"WHAT A STRIKE!",
+			"CLINICAL!",
+			"UNSTOPPABLE!",
+			"BACK OF THE NET!",
+		}
+		local SAVE_LINES =
+			{ "DENIED!", "NO CHANCE!", "BRICK WALL!", "HUGE HANDS!", "PARRIED AWAY!" }
+		local celebToken = 0
+
+		-- kind: "goal" (green) or "save" (blue). Sweeps the band in, slams the word,
+		-- holds, then sweeps out. Self-cancelling via a token so rapid turns are safe.
+		function playCelebration(kind: string, word: string?, sub: string?)
+			celebToken += 1
+			local myToken = celebToken
+
+			local lines = if kind == "save" then SAVE_LINES else GOAL_LINES
+			celebWord.Text = word or (if kind == "save" then "GREAT SAVE!" else "GOAL!")
+			celebSub.Text = sub or lines[math.random(1, #lines)]
+			celebBand.BackgroundColor3 = if kind == "save"
+				then Color3.fromRGB(58, 150, 230)
+				else Theme.Accent
+			celebGrad.Color = if kind == "save"
+				then ColorSequence.new(Color3.fromRGB(36, 96, 170), Color3.fromRGB(72, 170, 245))
+				else ColorSequence.new(Theme.AccentDark, Theme.Accent)
+
+			-- Reset to the off-screen-left start state.
+			celebBand.Visible = true
+			celebBand.Position = UDim2.fromScale(-1.6, 0.34)
+			celebWord.TextTransparency = 0
+			celebWordStroke.Transparency = 0
+			celebSub.TextTransparency = 0
+			local wordScale = celebWord:FindFirstChildOfClass("UIScale") or Instance.new("UIScale")
+			wordScale.Parent = celebWord
+			wordScale.Scale = 2.2
+
+			-- 1) Band sweeps in to centre.
+			TweenService:Create(
+				celebBand,
+				TweenInfo.new(0.22, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
+				{ Position = UDim2.fromScale(-0.2, 0.34) }
+			):Play()
+			-- 2) Word slams down to full size.
+			task.delay(0.05, function()
+				if celebToken ~= myToken then
+					return
+				end
+				TweenService:Create(
+					wordScale,
+					TweenInfo.new(0.26, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+					{ Scale = 1 }
+				):Play()
+			end)
+			-- 3) Hold, then sweep out to the right and fade.
+			task.delay(1.25, function()
+				if celebToken ~= myToken then
+					return
+				end
+				local OUT = TweenInfo.new(0.30, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+				TweenService:Create(celebBand, OUT, { Position = UDim2.fromScale(1.4, 0.34) })
+					:Play()
+				TweenService:Create(celebWord, OUT, { TextTransparency = 1 }):Play()
+				TweenService:Create(celebWordStroke, OUT, { Transparency = 1 }):Play()
+				TweenService:Create(celebSub, OUT, { TextTransparency = 1 }):Play()
+				task.delay(0.32, function()
+					if celebToken == myToken then
+						celebBand.Visible = false
+					end
+				end)
+			end)
+		end
+
+		-- A burst of falling, spinning confetti pieces (used on a match win). Pure
+		-- UI Frames -> no assets. They self-destruct after falling off-screen.
+		local CONFETTI_COLORS: { Color3 } = {
+			Color3.fromRGB(46, 200, 112),
+			Color3.fromRGB(255, 206, 72),
+			Color3.fromRGB(255, 255, 255),
+			Color3.fromRGB(58, 150, 230),
+			Color3.fromRGB(230, 80, 70),
+		}
+		function dropConfetti()
+			for _ = 1, 60 do
+				local piece = Instance.new("Frame")
+				piece.Size = UDim2.fromOffset(math.random(8, 16), math.random(10, 20))
+				piece.Position = UDim2.fromScale(math.random(), -0.1)
+				piece.BackgroundColor3 = CONFETTI_COLORS[math.random(1, #CONFETTI_COLORS)]
+				piece.BorderSizePixel = 0
+				piece.Rotation = math.random(0, 360)
+				piece.ZIndex = 2
+				piece.Parent = celebGui
+				local fall = math.random(18, 28) / 10 -- 1.8 .. 2.8s
+				local drift = (math.random() - 0.5) * 0.3
+				TweenService:Create(
+					piece,
+					TweenInfo.new(fall, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
+					{
+						Position = UDim2.fromScale(math.random() + drift, 1.15),
+						Rotation = piece.Rotation + math.random(-360, 360),
+						BackgroundTransparency = 0.4,
+					}
+				):Play()
+				task.delay(fall + 0.1, function()
+					piece:Destroy()
+				end)
+				task.wait(0.01) -- stagger the spawn for a natural shower
+			end
+		end
+	end -- close the celebration `do` scope (releases build-time locals)
 
 	-- ============================ LOBBY HUD ============================
 	-- A transparent full-screen container so the festival plaza shows through.
@@ -224,37 +502,18 @@ function UI.create(player: Player): Hud
 	lobby.BackgroundTransparency = 1
 	lobby.Parent = screen
 
-	local title = Instance.new("TextLabel")
-	title.Size = UDim2.fromScale(0.5, 0.09)
-	title.Position = UDim2.fromScale(0.25, 0.04)
-	title.BackgroundTransparency = 1
-	title.Font = Theme.FontTitle
-	title.TextScaled = true
-	title.TextColor3 = Color3.fromRGB(255, 255, 255)
-	title.Text = "⚽ PENALTY KINGS 👑"
-	title.Parent = lobby
-	gradient(title, Color3.fromRGB(255, 240, 200), Theme.Gold) -- gold sheen
-	local titleStroke = Instance.new("UIStroke")
-	titleStroke.Color = Color3.fromRGB(20, 24, 32)
-	titleStroke.Thickness = 3
-	titleStroke.Parent = title
+	-- Whenever we return to the lobby, drop the full-screen panel backdrop (showPanel
+	-- raises it). Centralised here so every panel-close path is covered automatically.
 
-	local subtitle = Instance.new("TextLabel")
-	subtitle.Size = UDim2.fromScale(0.46, 0.035)
-	subtitle.Position = UDim2.fromScale(0.27, 0.14)
-	subtitle.BackgroundTransparency = 1
-	subtitle.Font = Enum.Font.GothamMedium
-	subtitle.TextScaled = true
-	subtitle.TextColor3 = Color3.fromRGB(190, 200, 215)
-	subtitle.TextStrokeTransparency = 0.5
-	subtitle.Text = "Free-for-all Penalties · up to 8 players"
-	subtitle.Parent = lobby
+	-- (Persistent "PENALTY KINGS" title removed from the lobby HUD: it's branding that's
+	-- already on the loading screen, and it dominated the top-centre. The stadium + nation
+	-- chip carry the identity; this frees the whole top-centre of text.)
 
 	-- Nation identity: front-and-center so repping your country is the first thing
 	-- a new player does. Tapping it opens the nation picker (the shop).
 	local nationChip = Instance.new("TextButton")
 	nationChip.Size = UDim2.fromScale(0.34, 0.06)
-	nationChip.Position = UDim2.fromScale(0.33, 0.185)
+	nationChip.Position = UDim2.new(0.33, 0, 0.185, TOP_INSET)
 	nationChip.BackgroundColor3 = Color3.fromRGB(28, 32, 44)
 	nationChip.BackgroundTransparency = 0.1
 	nationChip.Font = Enum.Font.GothamBold
@@ -270,35 +529,38 @@ function UI.create(player: Player): Hud
 	shadow(nationChip, 0.6)
 	pressable(nationChip)
 
-	-- Matchday spotlight banner (Phase 4 live-ops). Tracks the real World Cup
-	-- calendar; tap to open the fixtures panel.
-	local featuredBanner = Instance.new("TextButton")
-	featuredBanner.Size = UDim2.fromScale(0.6, 0.04)
-	featuredBanner.Position = UDim2.fromScale(0.2, 0.25)
-	featuredBanner.BackgroundTransparency = 1
-	featuredBanner.Font = Enum.Font.GothamBold
-	featuredBanner.TextScaled = true
-	featuredBanner.TextColor3 = Color3.fromRGB(255, 170, 60)
-	featuredBanner.TextStrokeTransparency = 0.5
-	featuredBanner.Text = WorldCup.featuredText()
-	featuredBanner.Parent = lobby
-
-	-- "Your nation's next match" countdown (set from the equipped nation).
-	local nextMatchLabel = Instance.new("TextLabel")
-	nextMatchLabel.Size = UDim2.fromScale(0.6, 0.035)
-	nextMatchLabel.Position = UDim2.fromScale(0.2, 0.295)
+	-- ONE matchday line (the verbose "MATCHDAY — nations score 2× · tap for fixtures" promo
+	-- was merged in here to cut a row). Shows your nation's next match + a 📅 tap-for-fixtures
+	-- hint; the full matchday details live in the fixtures panel it opens.
+	local nextMatchLabel = Instance.new("TextButton")
+	nextMatchLabel.Size = UDim2.fromScale(0.46, 0.04)
+	nextMatchLabel.Position = UDim2.new(0.13, 0, 0.25, TOP_INSET)
 	nextMatchLabel.BackgroundTransparency = 1
 	nextMatchLabel.Font = Enum.Font.GothamBold
 	nextMatchLabel.TextScaled = true
+	nextMatchLabel.TextXAlignment = Enum.TextXAlignment.Left
 	nextMatchLabel.TextColor3 = Color3.fromRGB(120, 230, 150)
 	nextMatchLabel.TextStrokeTransparency = 0.5
 	nextMatchLabel.Text = ""
 	nextMatchLabel.Parent = lobby
 
+	-- A subtle backing card groups the top-left stat cluster (coins / record / level
+	-- / XP / season pass) so it reads cleanly over the busy stadium instead of as
+	-- loose floating text. ZIndex 0 keeps it behind the stats (Global behaviour).
+	local statPanel = Instance.new("Frame")
+	statPanel.Size = UDim2.fromScale(0.28, 0.17)
+	statPanel.Position = UDim2.new(0.012, 0, 0.075, TOP_INSET)
+	statPanel.BackgroundColor3 = Color3.fromRGB(12, 16, 26)
+	statPanel.BackgroundTransparency = 0.42
+	statPanel.BorderSizePixel = 0
+	statPanel.ZIndex = 0
+	corner(statPanel, 10)
+	statPanel.Parent = lobby
+
 	-- Coins + win/loss record (filled by ProfileUpdate), top-left HUD.
 	local lobbyStats = Instance.new("TextLabel")
-	lobbyStats.Size = UDim2.fromScale(0.5, 0.05)
-	lobbyStats.Position = UDim2.fromScale(0.02, 0.09) -- below the Roblox topbar buttons
+	lobbyStats.Size = UDim2.fromScale(0.26, 0.045)
+	lobbyStats.Position = UDim2.new(0.02, 0, 0.088, TOP_INSET) -- clears the (taller) mobile topbar
 	lobbyStats.BackgroundTransparency = 1
 	lobbyStats.Font = Enum.Font.GothamBold
 	lobbyStats.TextScaled = true
@@ -340,8 +602,12 @@ function UI.create(player: Player): Hud
 	-- Menu buttons across the bottom of the lobby.
 	local function menuButton(text: string, xScale: number): TextButton
 		local btn = Instance.new("TextButton")
-		btn.Size = UDim2.fromScale(0.22, 0.08)
-		btn.Position = UDim2.fromScale(xScale, 0.86)
+		-- On touch, compress the 4-button row into the middle 0.06..0.81 so the rightmost
+		-- (1V1) clears the jump button and the leftmost clears the movement thumbstick.
+		local x = if IS_TOUCH then 0.06 + (xScale - 0.03) * (0.193 / 0.235) else xScale
+		local w = if IS_TOUCH then 0.175 else 0.22
+		btn.Size = UDim2.fromScale(w, 0.08)
+		btn.Position = UDim2.fromScale(x, 0.86)
 		btn.BackgroundColor3 = Theme.PanelLight
 		btn.Font = Theme.FontBold
 		btn.TextScaled = true
@@ -376,7 +642,7 @@ function UI.create(player: Player): Hud
 	-- Level + XP bar (progression), top-left under the coins/record line.
 	local levelLabel = Instance.new("TextLabel")
 	levelLabel.Size = UDim2.fromScale(0.22, 0.04)
-	levelLabel.Position = UDim2.fromScale(0.02, 0.145)
+	levelLabel.Position = UDim2.new(0.02, 0, 0.145, TOP_INSET)
 	levelLabel.BackgroundTransparency = 1
 	levelLabel.Font = Enum.Font.GothamBlack
 	levelLabel.TextScaled = true
@@ -388,7 +654,7 @@ function UI.create(player: Player): Hud
 
 	local xpBarBg = Instance.new("Frame")
 	xpBarBg.Size = UDim2.fromScale(0.22, 0.016)
-	xpBarBg.Position = UDim2.fromScale(0.02, 0.19)
+	xpBarBg.Position = UDim2.new(0.02, 0, 0.19, TOP_INSET)
 	xpBarBg.BackgroundColor3 = Color3.fromRGB(25, 27, 35)
 	corner(xpBarBg, 6)
 	xpBarBg.Parent = lobby
@@ -397,6 +663,9 @@ function UI.create(player: Player): Hud
 	xpFill.BackgroundColor3 = Color3.fromRGB(120, 210, 255)
 	corner(xpFill, 6)
 	xpFill.Parent = xpBarBg
+
+	-- (Season Pass mini-badge + full panel are built by SeasonPassPanel.luau, wired
+	-- in just after the Store row below.)
 
 	-- Daily quests card (right side): always visible so it drives play sessions.
 	local questsCard = Instance.new("Frame")
@@ -647,6 +916,7 @@ function UI.create(player: Player): Hud
 	coach.Parent = match
 	local coachToken = 0
 	local coachedShooter, coachedKeeper = false, false
+	local powerMisses, readStreak = 0, 0 -- adaptive-coach streak counters (shooter)
 	local function showCoach(message: string)
 		coach.Text = message
 		coach.Visible = true
@@ -1114,7 +1384,7 @@ function UI.create(player: Player): Hud
 	closeShop.Font = Enum.Font.GothamBlack
 	closeShop.TextScaled = true
 	closeShop.TextColor3 = Color3.fromRGB(255, 255, 255)
-	closeShop.Text = "✕"
+	closeShop.Text = "X"
 	corner(closeShop, 10)
 	closeShop.Parent = shopPanel
 	decoratePanel(shopPanel, shopTitle, closeShop)
@@ -1263,7 +1533,7 @@ function UI.create(player: Player): Hud
 	closeBoard.Font = Enum.Font.GothamBlack
 	closeBoard.TextScaled = true
 	closeBoard.TextColor3 = Color3.fromRGB(255, 255, 255)
-	closeBoard.Text = "✕"
+	closeBoard.Text = "X"
 	corner(closeBoard, 10)
 	closeBoard.Parent = boardPanel
 	decoratePanel(boardPanel, boardTitle, closeBoard)
@@ -1418,14 +1688,90 @@ function UI.create(player: Player): Hud
 	closeChallenge.Font = Enum.Font.GothamBlack
 	closeChallenge.TextScaled = true
 	closeChallenge.TextColor3 = Color3.fromRGB(255, 255, 255)
-	closeChallenge.Text = "✕"
+	closeChallenge.Text = "X"
 	corner(closeChallenge, 10)
 	closeChallenge.Parent = challengePanel
 	decoratePanel(challengePanel, challengeTitle, closeChallenge)
 
+	-- Walk-Off quick-queue card (at the top of the 1V1 panel).
+	local walkoffCard = Instance.new("Frame")
+	walkoffCard.Size = UDim2.fromScale(0.88, 0.16)
+	walkoffCard.Position = UDim2.fromScale(0.06, 0.16)
+	walkoffCard.BackgroundColor3 = Color3.fromRGB(28, 36, 52)
+	walkoffCard.BackgroundTransparency = 0.2
+	corner(walkoffCard, 12)
+	local walkoffStroke = Instance.new("UIStroke")
+	walkoffStroke.Color = Color3.fromRGB(80, 140, 255)
+	walkoffStroke.Thickness = 2
+	walkoffStroke.Transparency = 0.4
+	walkoffStroke.Parent = walkoffCard
+	walkoffCard.Parent = challengePanel
+
+	local walkoffLabel = Instance.new("TextLabel")
+	walkoffLabel.Size = UDim2.fromScale(0.55, 0.55)
+	walkoffLabel.Position = UDim2.fromScale(0.03, 0.1)
+	walkoffLabel.BackgroundTransparency = 1
+	walkoffLabel.Font = Enum.Font.GothamBlack
+	walkoffLabel.TextScaled = true
+	walkoffLabel.TextXAlignment = Enum.TextXAlignment.Left
+	walkoffLabel.TextColor3 = Color3.fromRGB(120, 180, 255)
+	walkoffLabel.Text = "WALK-OFF 1v1"
+	walkoffLabel.Parent = walkoffCard
+
+	local walkoffDesc = Instance.new("TextLabel")
+	walkoffDesc.Size = UDim2.fromScale(0.55, 0.35)
+	walkoffDesc.Position = UDim2.fromScale(0.03, 0.62)
+	walkoffDesc.BackgroundTransparency = 1
+	walkoffDesc.Font = Enum.Font.Gotham
+	walkoffDesc.TextScaled = true
+	walkoffDesc.TextXAlignment = Enum.TextXAlignment.Left
+	walkoffDesc.TextColor3 = Color3.fromRGB(160, 175, 200)
+	walkoffDesc.Text = "Instant 1v1 — pairs on join"
+	walkoffDesc.Parent = walkoffCard
+
+	local walkoffBtn = Instance.new("TextButton")
+	walkoffBtn.Size = UDim2.fromScale(0.32, 0.6)
+	walkoffBtn.Position = UDim2.fromScale(0.65, 0.2)
+	walkoffBtn.BackgroundColor3 = Color3.fromRGB(45, 110, 220)
+	walkoffBtn.Font = Enum.Font.GothamBlack
+	walkoffBtn.TextScaled = true
+	walkoffBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+	walkoffBtn.Text = "JOIN"
+	corner(walkoffBtn, 10)
+	walkoffBtn.Parent = walkoffCard
+	polish(walkoffBtn, true)
+
+	walkoffBtn.Activated:Connect(function()
+		Sound.play("Click")
+		if self.onJoinWalkOff then
+			self.onJoinWalkOff()
+		end
+	end)
+
+	local walkoffStatus = Instance.new("TextLabel")
+	walkoffStatus.Size = UDim2.fromScale(1, 0.22)
+	walkoffStatus.Position = UDim2.fromScale(0, 0.78)
+	walkoffStatus.BackgroundTransparency = 1
+	walkoffStatus.Font = Enum.Font.GothamMedium
+	walkoffStatus.TextScaled = true
+	walkoffStatus.TextColor3 = Color3.fromRGB(140, 155, 185)
+	walkoffStatus.Text = ""
+	walkoffStatus.Parent = walkoffCard
+
+	-- Divider between walk-off card and player list.
+	local divLabel = Instance.new("TextLabel")
+	divLabel.Size = UDim2.fromScale(0.88, 0.04)
+	divLabel.Position = UDim2.fromScale(0.06, 0.34)
+	divLabel.BackgroundTransparency = 1
+	divLabel.Font = Enum.Font.GothamBold
+	divLabel.TextScaled = true
+	divLabel.TextColor3 = Color3.fromRGB(240, 200, 40)
+	divLabel.Text = "— OR CHALLENGE A PLAYER —"
+	divLabel.Parent = challengePanel
+
 	local challengeList = Instance.new("ScrollingFrame")
-	challengeList.Size = UDim2.fromScale(0.88, 0.78)
-	challengeList.Position = UDim2.fromScale(0.06, 0.16)
+	challengeList.Size = UDim2.fromScale(0.88, 0.56)
+	challengeList.Position = UDim2.fromScale(0.06, 0.39)
 	challengeList.BackgroundTransparency = 1
 	challengeList.BorderSizePixel = 0
 	challengeList.ScrollBarThickness = 6
@@ -1634,7 +1980,7 @@ function UI.create(player: Player): Hud
 	closeFixtures.Font = Enum.Font.GothamBlack
 	closeFixtures.TextScaled = true
 	closeFixtures.TextColor3 = Color3.fromRGB(255, 255, 255)
-	closeFixtures.Text = "✕"
+	closeFixtures.Text = "X"
 	corner(closeFixtures, 10)
 	closeFixtures.Parent = fixturesPanel
 	decoratePanel(fixturesPanel, fixturesTitle, closeFixtures)
@@ -1750,7 +2096,7 @@ function UI.create(player: Player): Hud
 		end
 	end
 
-	featuredBanner.Activated:Connect(function()
+	nextMatchLabel.Activated:Connect(function()
 		lobby.Visible = false
 		showPanel(fixturesPanel)
 		renderFixtures()
@@ -1759,6 +2105,27 @@ function UI.create(player: Player): Hud
 		fixturesPanel.Visible = false
 		lobby.Visible = true
 	end)
+
+	-- (Season Pass panel built by SeasonPassPanel.luau; wired in after the Store row.)
+
+	-- ========================== TRIVIA KIOSK ==========================
+	-- Extracted to TriviaPanel.luau to keep UI.create under Luau's 200-local limit.
+	local triviaCtl = TriviaPanel.build(screen, {
+		corner = corner,
+		pressable = pressable,
+		setLobbyVisible = function(v: boolean)
+			lobby.Visible = v
+		end,
+	})
+	-- Route answer taps through the host's network callback (set by init.client).
+	triviaCtl.onAnswer = function(answer: string)
+		if self.onTriviaAnswer then
+			self.onTriviaAnswer(answer)
+		end
+	end
+	self.showTriviaQuestion = triviaCtl.showQuestion
+	self.showTriviaResult = triviaCtl.showResult
+	self.hideTriviaPanel = triviaCtl.hide
 
 	-- ============================== STORE ==============================
 	local latestMon: Types.MonetizationInfo = { ownsDoubler = false }
@@ -1789,7 +2156,7 @@ function UI.create(player: Player): Hud
 	closeStore.Font = Enum.Font.GothamBlack
 	closeStore.TextScaled = true
 	closeStore.TextColor3 = Color3.fromRGB(255, 255, 255)
-	closeStore.Text = "✕"
+	closeStore.Text = "X"
 	corner(closeStore, 10)
 	closeStore.Parent = storePanel
 	decoratePanel(storePanel, storeTitle, closeStore)
@@ -1818,13 +2185,27 @@ function UI.create(player: Player): Hud
 		corner(row)
 		row.Parent = storeScroller
 
-		local iconLabel = Instance.new("TextLabel")
-		iconLabel.Size = UDim2.fromScale(0.16, 1)
-		iconLabel.BackgroundTransparency = 1
-		iconLabel.Font = Enum.Font.GothamBold
-		iconLabel.TextScaled = true
-		iconLabel.Text = icon
-		iconLabel.Parent = row
+		-- Icon: an image asset when an id is passed (rbxassetid://…), else emoji text.
+		-- We render via rbxthumb:// (the asset's thumbnail) so it shows whether the id
+		-- is an Image OR a Decal -- a raw Decal id often won't render via .Image directly.
+		if string.sub(icon, 1, 4) == "rbxa" then
+			local assetId = string.match(icon, "%d+") or "0"
+			local iconImg = Instance.new("ImageLabel")
+			iconImg.Size = UDim2.fromScale(0.13, 0.7)
+			iconImg.Position = UDim2.fromScale(0.015, 0.15)
+			iconImg.BackgroundTransparency = 1
+			iconImg.ScaleType = Enum.ScaleType.Fit
+			iconImg.Image = "rbxthumb://type=Asset&id=" .. assetId .. "&w=150&h=150"
+			iconImg.Parent = row
+		else
+			local iconLabel = Instance.new("TextLabel")
+			iconLabel.Size = UDim2.fromScale(0.16, 1)
+			iconLabel.BackgroundTransparency = 1
+			iconLabel.Font = Enum.Font.GothamBold
+			iconLabel.TextScaled = true
+			iconLabel.Text = icon
+			iconLabel.Parent = row
+		end
 
 		local label = Instance.new("TextLabel")
 		label.Size = UDim2.fromScale(0.45, 1)
@@ -1851,8 +2232,42 @@ function UI.create(player: Player): Hud
 		return buy
 	end
 
+	-- Gamepass: Season Pass "Road to the Final".
+	local seasonPassBtn =
+		storeRow(1, "rbxassetid://123868339254737", "Season Pass — Road to the Final")
+	seasonPassBtn.Activated:Connect(function()
+		Sound.play("Click")
+		if self.onBuySeasonPass then
+			self.onBuySeasonPass()
+		end
+	end)
+
+	-- Build the Season Pass (badge + 40-tier panel) now that the Store row exists, so
+	-- its setSeasonPass can also mark that row owned. Lives in SeasonPassPanel.luau.
+	local seasonPassCtl = SeasonPassPanel.build(screen, lobby, {
+		corner = corner,
+		gradient = gradient,
+		polish = polish,
+		decoratePanel = decoratePanel,
+		showPanel = showPanel,
+		setLobbyVisible = function(v: boolean)
+			lobby.Visible = v
+		end,
+		onBuy = function()
+			if self.onBuySeasonPass then
+				self.onBuySeasonPass()
+			end
+		end,
+		onPremiumOwned = function()
+			seasonPassBtn.Text = "OWNED"
+			seasonPassBtn.BackgroundColor3 = Color3.fromRGB(60, 80, 60)
+			seasonPassBtn.AutoButtonColor = false
+		end,
+	})
+	self.setSeasonPass = seasonPassCtl.setSeasonPass
+
 	-- Gamepass: 2x coins forever.
-	local doublerBtn = storeRow(1, "🔥", "2× Coins Forever")
+	local doublerBtn = storeRow(2, "rbxassetid://76742672116397", "2× Coins Forever")
 	doublerBtn.Activated:Connect(function()
 		Sound.play("Click")
 		if not latestMon.ownsDoubler and self.onBuyDoubler then
@@ -1862,7 +2277,8 @@ function UI.create(player: Player): Hud
 
 	-- Coin packs (developer products).
 	for index, pack in Config.Monetization.CoinPacks do
-		local buy = storeRow(index + 1, "💰", `{pack.label}  (+{pack.coins})`)
+		local buy =
+			storeRow(index + 2, "rbxassetid://109933102171049", `{pack.label}  (+{pack.coins})`)
 		buy.Activated:Connect(function()
 			Sound.play("Click")
 			if self.onBuyCoins then
@@ -2053,13 +2469,12 @@ function UI.create(player: Player): Hud
 		)
 		local nation = Catalog.get(data.Equipped)
 		nationChip.Text = if nation
-			then string.format(
-				"🌍 Playing as %s %s  ·  tap to change",
-				nation.emoji,
-				nation.name
-			)
+			then string.format("🌍 %s %s  ▾", nation.emoji, nation.name)
 			else "🌍 Pick your country"
-		nextMatchLabel.Text = WorldCup.nextMatchText(data.Equipped) or ""
+		local nextMatch = WorldCup.nextMatchText(data.Equipped)
+		nextMatchLabel.Text = if nextMatch
+			then nextMatch .. "   ·   📅 fixtures"
+			else "📅 World Cup fixtures"
 		renderProgression(data)
 		refreshShop()
 	end
@@ -2097,6 +2512,12 @@ function UI.create(player: Player): Hud
 		lobby.Visible = true
 		deadline = 0
 		setAimEnabled(false) -- no world crosshair while in the plaza
+	end
+
+	-- Temporarily hide/show the whole lobby HUD (used by the Free Kicks warmup so its
+	-- own header + SHOOT button don't stack on top of the lobby title + FIND MATCH).
+	function self.setLobbyVisible(visible: boolean)
+		lobby.Visible = visible
 	end
 
 	function self.setQueue(inQueue: boolean, size: number)
@@ -2217,6 +2638,43 @@ function UI.create(player: Player): Hud
 		result.Text = text
 		result.TextColor3 = color
 		result.TextTransparency = 0
+
+		-- A context-aware verdict (big word + teaching line) derived from the geometry,
+		-- so the hidden skill model is legible and every shot gets personality.
+		local vword, vsub = deriveVerdict(info)
+		waiting.Text = vsub -- the descriptive line shows on every POV (incl. conceded/saved/miss)
+
+		-- Big cinematic overlay on the dramatic positive beats: a goal (you scored
+		-- or you're watching one land) or a keeper's save you made. The negative POV
+		-- (you conceded / your shot was saved / a miss) keeps just the HUD label.
+		if info.outcome == "Goal" and not info.youWereKeeper then
+			playCelebration("goal", vword, vsub)
+		elseif info.outcome == "Save" and info.youWereKeeper then
+			playCelebration("save", vword, vsub)
+		end
+
+		-- Adaptive coaching: spot a REPEATED mistake from the geometry and give the
+		-- shooter a targeted fix (same skill model the verdicts read). Fires only on the
+		-- shooter's negative beats, so it never collides with a celebration.
+		if info.youWereShooter then
+			local sprayed = info.outcome == "Miss" and (info.shotY > 1 or math.abs(info.shotX) > 1)
+			powerMisses = if sprayed then powerMisses + 1 else 0
+			local read = info.outcome == "Save"
+				and math.abs(info.keeperX) >= 0.35
+				and (info.keeperX * info.shotX) > 0.04
+			readStreak = if read then readStreak + 1 else 0
+			if powerMisses >= 2 then
+				powerMisses = 0
+				Sound.play("MissTooMuch") -- cheeky callout for repeated over-power sprays
+				showCoach(
+					"Tip: ease off the power — too much sprays it wide. Find the sweet spot."
+				)
+			elseif readStreak >= 2 then
+				readStreak = 0
+				showCoach("Tip: mix up your corners — the keeper is reading your side.")
+			end
+		end
+
 		-- Punch: overshoot the scale, then settle (game feel).
 		resultScale.Scale = 1.6
 		TweenService:Create(
@@ -2238,20 +2696,49 @@ function UI.create(player: Player): Hud
 		showPanel(overPanel)
 		deadline = 0
 		setAimEnabled(false) -- clear the crosshair off the goal
-		overTitle.Text = if info.won
-			then "🏆 WINNER!"
-			else string.format("#%d of %d", info.placement, info.total)
-		overTitle.TextColor3 = if info.won
-			then Color3.fromRGB(240, 200, 40)
-			else Color3.fromRGB(200, 205, 220)
 
+		-- Dramatic, result-dependent headline (podium medals make 2nd/3rd feel earned
+		-- instead of "you lost").
+		local headline, headColor
+		if info.won then
+			headline, headColor = "🏆 WINNER!", Color3.fromRGB(255, 210, 60)
+		elseif info.placement == 2 then
+			headline, headColor = "🥈 2ND PLACE", Color3.fromRGB(214, 222, 236)
+		elseif info.placement == 3 then
+			headline, headColor = "🥉 3RD PLACE", Color3.fromRGB(206, 150, 96)
+		else
+			headline = string.format("#%d of %d", info.placement, info.total)
+			headColor = Color3.fromRGB(200, 205, 220)
+		end
+		overTitle.Text = headline
+		overTitle.TextColor3 = headColor
+		-- Punch the headline in (reuse one UIScale; no new build-time locals).
+		local tScale = overTitle:FindFirstChildOfClass("UIScale") or Instance.new("UIScale")
+		tScale.Parent = overTitle
+		tScale.Scale = 1.8
+		TweenService:Create(
+			tScale,
+			TweenInfo.new(0.42, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+			{ Scale = 1 }
+		):Play()
+
+		-- Champagne moment: a confetti shower rains down behind the victory card.
+		if info.won then
+			task.spawn(dropConfetti)
+		end
+
+		-- Final standings, with YOUR row highlighted gold (RichText) so the screenshot
+		-- reads at a glance.
+		overScore.RichText = true
 		local lines = {}
 		local myGoals = 0
 		for rank, entry in info.standings do
-			table.insert(lines, string.format("%d. %s — %d", rank, entry.name, entry.goals))
+			local line = string.format("%d. %s — %d", rank, entry.name, entry.goals)
 			if entry.isYou then
 				myGoals = entry.goals
+				line = string.format('<b><font color="rgb(255,210,60)">%s</font></b>', line)
 			end
+			table.insert(lines, line)
 		end
 		local detail = table.concat(lines, "\n")
 		if info.reason then
@@ -2259,11 +2746,43 @@ function UI.create(player: Player): Hud
 		end
 		overScore.Text = detail
 
-		-- Victory-card line: your flag + goals this match.
+		-- Victory-card line: your flag + a quick count-up of your goals.
 		local nation = if latestProfile then Catalog.get(latestProfile.Equipped) else nil
 		local flag = if nation then nation.emoji .. " " .. nation.name else "🌍"
-		overNation.Text =
-			string.format("%s  ·  %d goal%s", flag, myGoals, if myGoals == 1 then "" else "s")
+		task.spawn(function()
+			for g = 0, myGoals do
+				if not overPanel.Visible then
+					return -- left the screen; stop counting
+				end
+				overNation.Text =
+					string.format("%s  ·  %d goal%s", flag, g, if g == 1 then "" else "s")
+				task.wait(0.1)
+			end
+		end)
+	end
+
+	-- (Trivia panel + its showTriviaQuestion/showTriviaResult/hideTriviaPanel are now
+	-- provided by TriviaPanel.luau and wired onto `self` up where the panel is built.)
+
+	-- Updates the Walk-Off queue button and status label in the challenge panel.
+	function self.setWalkOffQueue(inQueue: boolean, size: number)
+		if inQueue then
+			walkoffBtn.Text = "CANCEL"
+			walkoffBtn.BackgroundColor3 = Color3.fromRGB(140, 60, 60)
+			walkoffStatus.Text = string.format("In queue · %d waiting", size)
+		else
+			walkoffBtn.Text = "JOIN"
+			walkoffBtn.BackgroundColor3 = Color3.fromRGB(45, 110, 220)
+			walkoffStatus.Text = if size > 0 then string.format("%d in queue", size) else ""
+		end
+	end
+
+	-- (self.setSeasonPass is wired from SeasonPassPanel.build above.)
+
+	-- Choices runner: hide the whole penalty-game HUD (coins/level/queue banners) while a
+	-- player is in the Choices course, so their screen is clean. Restored on exit.
+	self.setChoicesMode = function(active: boolean)
+		screen.Enabled = not active
 	end
 
 	return self

@@ -127,7 +127,8 @@ function Decor.setup()
 		halfLen = Vector3.new(centerPart.Position.X - g.goal.X, 0, centerPart.Position.Z - g.goal.Z)
 			:Dot(-g.dir)
 	end
-	local pitchHalf = math.max(halfWidth + 22, 0.85 * halfLen) -- stand edge (kept well off the pitch)
+	-- Turf measured 143.92 studs wide → half = 71.96 ≈ 72 (Config.Pitch.HalfWidth).
+	local pitchHalf = math.max(halfWidth + 22, Config.Pitch.HalfWidth)
 
 	-- Find the real pitch surface by raycasting straight down, so nothing floats
 	-- regardless of the stadium's heights. Ignore the decor + the markers.
@@ -273,21 +274,6 @@ function Decor.setup()
 		head.CanQuery = false
 	end
 
-	-- A block of fans rising in tiers. `step` is the direction the rows recede.
-	-- The base sits on the turf found beneath the terrace centre.
-	local function terrace(center: Vector3, step: Vector3, rows: number, span: number)
-		local baseY = ground(Vector3.new(center.X, 0, center.Z), 1.2).Y
-		local seats = math.floor(span / 2.5)
-		for r = 0, rows - 1 do
-			local recede = step * (r * 3.2)
-			for s = 0, seats do
-				local off = (s - seats / 2) * 2.5 + crowdRng:NextNumber(-0.4, 0.4)
-				local pos = Vector3.new(center.X, baseY + r * 2, center.Z) + g.right * off + recede
-				fan(pos)
-			end
-		end
-	end
-
 	local goalXZ0 = Vector3.new(g.goal.X, 0, g.goal.Z)
 	local crowdMesh = Assets.template(Config.Models.Crowd)
 	if crowdMesh then
@@ -315,23 +301,46 @@ function Decor.setup()
 		local lenCount = math.clamp(math.floor((2 * halfLen) / secW), 2, 26)
 		line(goalXZ0 + g.dir * 9 - g.right * pitchHalf, g.right * secW, widthCount) -- behind near goal
 		line(goalXZ0 - g.dir * (2 * halfLen + 7) - g.right * pitchHalf, g.right * secW, widthCount) -- far goal
-		line(goalXZ0 - g.right * (pitchHalf + 3), -g.dir * secW, lenCount) -- left touchline
-		line(goalXZ0 + g.right * (pitchHalf + 3), -g.dir * secW, lenCount) -- right touchline
+		line(goalXZ0 - g.right * (pitchHalf + 10), -g.dir * secW, lenCount) -- left touchline
+		line(goalXZ0 + g.right * (pitchHalf + 10), -g.dir * secW, lenCount) -- right touchline
 	else
-		-- Blocky-fan fallback: terraces set BACK from both goals + tiered touchlines
-		-- pushed out to the wider stand edge (so the crowd isn't on top of the cage).
-		terrace(goalXZ0 + g.dir * 24, g.dir, 7, pitchHalf * 2)
-		terrace(goalXZ0 - g.dir * (2 * halfLen + 24), -g.dir, 6, pitchHalf * 2)
+		-- Blocky-fan fallback: fill fans onto the REAL stand surfaces on all four
+		-- sides. At each grid point we raycast and place a fan ONLY where the ground
+		-- is raised (an actual stand deck/tier -- the stands here rise 20-40 studs),
+		-- skipping flat turf and the empty baseplate beyond the stands. This climbs
+		-- the crowd up the stands and across the whole bowl instead of bunching them
+		-- in a thin strip at the touchline.
+		local STEP = 4.5
+		local FLOOR = 7 -- min ground height (studs) to count as a stand; turf is ~2-3
+		local function fan_if_stand(xz: Vector3)
+			local gy = ground(Vector3.new(xz.X, 0, xz.Z), 0).Y
+			if gy > FLOOR then
+				fan(Vector3.new(xz.X, gy + 1.1, xz.Z))
+			end
+		end
+		-- Long sides (touchlines): sweep outward across the stand depth + along it.
 		for _, side in { -1, 1 } do
-			local seats = math.clamp(math.floor((2 * halfLen) / 3), 6, 90)
-			for s = 0, seats do
-				for tier = 0, 2 do
-					local xz = goalXZ0
-						+ g.right * ((pitchHalf + 9 + tier * 2.6) * side)
-						- g.dir * (s * 3 + 4)
-					local baseY = math.min(ground(xz, 0).Y, g.standY + 2)
-					fan(Vector3.new(xz.X, baseY + 1.1 + tier * 2, xz.Z))
+			local d = pitchHalf + 2
+			while d <= pitchHalf + 80 do
+				local a = -(halfLen + 20)
+				while a <= halfLen + 20 do
+					fan_if_stand(goalXZ0 + g.right * (d * side) - g.dir * a)
+					a += STEP
 				end
+				d += STEP
+			end
+		end
+		-- Behind both goals.
+		local farLine = goalXZ0 - g.dir * (2 * halfLen)
+		for _, endCfg in { { base = goalXZ0, out = g.dir }, { base = farLine, out = -g.dir } } do
+			local d = 8
+			while d <= 72 do
+				local a = -(pitchHalf + 20)
+				while a <= pitchHalf + 20 do
+					fan_if_stand(endCfg.base + endCfg.out * d + g.right * a)
+					a += STEP
+				end
+				d += STEP
 			end
 		end
 	end

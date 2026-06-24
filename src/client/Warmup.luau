@@ -22,6 +22,8 @@ local Warmup = {}
 local player = Players.LocalPlayer
 local rewardEvent = Net.getEvent(Net.Events.WarmupReward)
 
+local hudRef: { setLobbyVisible: (boolean) -> () }? = nil
+
 local active = false
 local shotsLeft = 0
 local score = 0
@@ -148,7 +150,7 @@ quitButton.BackgroundColor3 = Color3.fromRGB(180, 70, 60)
 quitButton.Font = Enum.Font.GothamBlack
 quitButton.TextScaled = true
 quitButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-quitButton.Text = "✕"
+quitButton.Text = "X"
 local quitCorner = Instance.new("UICorner")
 quitCorner.CornerRadius = UDim.new(0, 10)
 quitCorner.Parent = quitButton
@@ -189,6 +191,9 @@ local function endSession()
 	flightBall.Transparency = 1
 	screen.Enabled = false
 	setCamera(false)
+	if hudRef then
+		hudRef.setLobbyVisible(true) -- restore the lobby HUD
+	end
 	if score > 0 then
 		rewardEvent:FireServer({ score = score })
 	end
@@ -250,6 +255,9 @@ local function startSession()
 	canShoot = true
 	startClock = os.clock()
 	updateStatus()
+	if hudRef then
+		hudRef.setLobbyVisible(false) -- hide the lobby HUD so it doesn't stack
+	end
 	screen.Enabled = true
 	reticleGui.Enabled = true
 	setCamera(true)
@@ -272,7 +280,8 @@ function Warmup.cancel()
 	endSession()
 end
 
-function Warmup.start()
+function Warmup.start(hud: { setLobbyVisible: (boolean) -> () }?)
+	hudRef = hud
 	ProximityPromptService.PromptTriggered:Connect(
 		function(prompt: ProximityPrompt, triggerer: Player)
 			if triggerer == player and prompt.Name == "WarmupPrompt" then

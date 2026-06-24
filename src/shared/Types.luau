@@ -110,6 +110,7 @@ export type ProfileData = {
 	GoalsScored: number,
 	SavesMade: number,
 	MatchesPlayed: number,
+	HasOnboarded: boolean, -- shown the first-time welcome/tutorial yet?
 	OwnedCosmetics: { [string]: boolean }, -- cosmetic id -> owned
 	Equipped: string, -- currently equipped cosmetic id
 	PurchaseIds: { string }, -- processed dev-product receipts (idempotency)
@@ -125,6 +126,18 @@ export type ProfileData = {
 	-- participation reward was last paid.
 	Predictions: { [string]: string },
 	PredictionRewardDay: number,
+	-- Season Pass ("Road to the Final", June 13 – July 19, 2026).
+	SeasonXP: number, -- XP accrued toward the pass (separate from level XP)
+	SeasonTierGranted: number, -- highest tier whose free (+ premium) rewards have been granted
+	HasPremiumPass: boolean, -- owns the premium upgrade gamepass
+	OwnedTitles: { [string]: boolean }, -- title IDs unlocked via the pass
+	EquippedTitle: string, -- currently displayed title; "" = none
+	XpBoostExpiry: number, -- os.time() when the active 2× XP boost expires; 0 = inactive
+	-- Choices runner: legends you've "become" (legend id -> unlocked), and the day index
+	-- the once-per-day Choices-run bonus was last paid.
+	LegendsUnlocked: { [string]: boolean },
+	ChoicesQuestDay: number,
+	ChoicesIntroSeen: boolean, -- shown the first-time nudge toward the Choices mode yet?
 }
 
 -- server -> client: gamepass-derived perks (not persisted; ownership is live).

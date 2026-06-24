@@ -42,6 +42,19 @@ end
 function BadgeService.streak3(player: Player)
 	BadgeService.tryAward(player, Config.Badges.Streak3)
 end
+-- Choices runner milestones.
+function BadgeService.choicesFirstRun(player: Player)
+	BadgeService.tryAward(player, Config.Badges.ChoicesFirstRun)
+end
+-- Legend collection: award the tiers reached given how many of `total` you've collected.
+function BadgeService.choicesLegends(player: Player, collected: number, total: number)
+	if collected >= total then
+		BadgeService.tryAward(player, Config.Badges.ChoicesAllLegends)
+	end
+	if collected >= 10 then
+		BadgeService.tryAward(player, Config.Badges.ChoicesCollector)
+	end
+end
 -- Level milestones: award the ones newly reached this level-up.
 function BadgeService.level(player: Player, level: number)
 	if level >= 10 then

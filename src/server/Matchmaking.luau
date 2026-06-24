@@ -23,6 +23,7 @@ local GATHER_SECONDS = 5
 local Matchmaking = {}
 
 local queue: { Player } = {}
+local walkoffQueue: { Player } = {}
 local matchByPlayer: { [Player]: Match.Match } = {}
 local gathering = false
 
@@ -102,12 +103,17 @@ function Matchmaking.leave(player: Player)
 	end
 end
 
-function Matchmaking.submit(player: Player, payload: unknown)
+-- Returns true if the input was routed to an active match (so the caller can
+-- fall through to the gauntlet handler when this returns false).
+function Matchmaking.submit(player: Player, payload: unknown): boolean
 	local match = matchByPlayer[player]
 	if match then
 		Match.submit(match, player, payload)
+		return true
 	end
+	return false
 end
+
 
 -- ===== Friend challenges: in-server private 1v1 =====
 
@@ -117,6 +123,55 @@ local pending: { [Player]: { target: Player, expires: number } } = {}
 
 local function notify(player: Player, message: string)
 	Net.getEvent(Net.Events.Notify):FireClient(player, { message = message })
+end
+
+-- ===== Walk-Off: fast 1v1 queue — pairs immediately, no gather delay =====
+
+local function sendWalkOffUpdate(player: Player, inQueue: boolean)
+	Net.getEvent(Net.Events.WalkOffQueueUpdate)
+		:FireClient(player, { inQueue = inQueue, size = #walkoffQueue })
+end
+
+local function tryStartWalkOff()
+	while #walkoffQueue >= 2 do
+		local a = table.remove(walkoffQueue, 1) :: Player
+		local b = table.remove(walkoffQueue, 1) :: Player
+		if a.Parent ~= Players or b.Parent ~= Players then
+			-- One already left; put the surviving one back.
+			if a.Parent == Players then
+				table.insert(walkoffQueue, 1, a)
+			end
+			if b.Parent == Players then
+				table.insert(walkoffQueue, 1, b)
+			end
+			break
+		end
+		notify(a, string.format("Walk-Off vs %s! Good luck", b.DisplayName))
+		notify(b, string.format("Walk-Off vs %s! Good luck", a.DisplayName))
+		sendWalkOffUpdate(a, false)
+		sendWalkOffUpdate(b, false)
+		startMatch({ a, b })
+	end
+end
+
+function Matchmaking.joinWalkOff(player: Player)
+	if matchByPlayer[player]
+		or table.find(queue, player)
+		or table.find(walkoffQueue, player)
+	then
+		return
+	end
+	table.insert(walkoffQueue, player)
+	sendWalkOffUpdate(player, true)
+	tryStartWalkOff()
+end
+
+function Matchmaking.leaveWalkOff(player: Player)
+	local idx = table.find(walkoffQueue, player)
+	if idx then
+		table.remove(walkoffQueue, idx)
+		sendWalkOffUpdate(player, false)
+	end
 end
 
 local function isBusy(player: Player): boolean
@@ -190,6 +245,7 @@ end
 
 function Matchmaking.onPlayerRemoving(player: Player)
 	Matchmaking.leave(player)
+	Matchmaking.leaveWalkOff(player)
 	pending[player] = nil -- drop a challenge they sent
 	for challenger, entry in pending do
 		if rawequal(entry.target, player) then

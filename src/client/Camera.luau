@@ -28,6 +28,15 @@ local goalCamCF: CFrame? = nil
 local goalCamUntil = 0
 local eased: CFrame? = nil
 
+-- Pre-shot dolly: at the start of a round the camera glides IN from a pulled-back,
+-- lifted angle instead of snapping to the framed TV shot. Purely cosmetic -- the
+-- goal stays centred the whole time (we only pull back along the look axis), so it
+-- never affects aiming or the shot clock.
+local introUntil = 0
+local INTRO_SECONDS = 1.0
+local INTRO_PULLBACK = 13 -- studs back along the camera's look axis
+local INTRO_LIFT = 3.5 -- studs raised, settling down into frame
+
 -- FOV "punch": a quick widen on a strike that eases back to the base FOV.
 local fovKick = 0
 
@@ -67,11 +76,16 @@ function Camera.toMatch(asKeeper: boolean?)
 	end
 
 	active = true
-	eased = cf
 	fovKick = 0
 	cam.CameraType = Enum.CameraType.Scriptable
 	cam.FieldOfView = BASE_FOV
-	cam.CFrame = cf
+
+	-- Seed the eased follow from a pulled-back, lifted pose so it glides in.
+	local startPos = cf.Position - cf.LookVector * INTRO_PULLBACK + Vector3.new(0, INTRO_LIFT, 0)
+	local lookAt = cf.Position + cf.LookVector * 10 -- a point down the same sightline
+	eased = CFrame.lookAt(startPos, lookAt)
+	introUntil = os.clock() + INTRO_SECONDS
+	cam.CFrame = eased :: CFrame
 
 	-- Re-assert every frame so the angle holds even as the avatar/animator moves.
 	pcall(function()
@@ -90,8 +104,10 @@ function Camera.toMatch(asKeeper: boolean?)
 		if goalCamCF and os.clock() < goalCamUntil then
 			desired = goalCamCF
 		end
-		-- Frame-rate-independent smoothing so moves glide instead of snapping.
-		local alpha = 1 - math.exp(-dt * 9)
+		-- Frame-rate-independent smoothing so moves glide instead of snapping. The
+		-- pre-shot dolly uses a gentler rate so the push-in reads as deliberate.
+		local rate = if os.clock() < introUntil then 3.2 else 9
+		local alpha = 1 - math.exp(-dt * rate)
 		eased = (eased or desired):Lerp(desired, alpha)
 		if trauma > 0 then
 			c.CFrame = (eased :: CFrame) * shakeOffset()
@@ -141,6 +157,23 @@ function Camera.goalCam(seconds: number)
 		+ frame.LookVector * 7
 		+ Vector3.new(0, 3.5, 0)
 	local look = frame.Position + Vector3.new(0, 3, 0)
+	goalCamCF = CFrame.lookAt(pos, look)
+	goalCamUntil = os.clock() + seconds
+end
+
+-- The keeper's hero shot: a LOW, tight angle from the side OPPOSITE the dive, so the
+-- full-stretch parry reads big against the goal. Reuses the goal-cam override slot.
+function Camera.saveCam(seconds: number, diveX: number?)
+	local frame = Venue.goalCFrame()
+	if not frame then
+		return
+	end
+	local side = if (diveX or 0) >= 0 then 1 else -1 -- which way the keeper went
+	local pos = frame.Position
+		+ frame.RightVector * (-side * 13) -- shoot from the far side of the dive
+		+ frame.LookVector * 8
+		+ Vector3.new(0, 2.0, 0) -- lower than the goal cam = more dramatic
+	local look = frame.Position + frame.RightVector * (side * 3) + Vector3.new(0, 2.2, 0)
 	goalCamCF = CFrame.lookAt(pos, look)
 	goalCamUntil = os.clock() + seconds
 end
