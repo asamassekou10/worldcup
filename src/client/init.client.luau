@@ -612,11 +612,35 @@ do
 	progLbl.Text = ""
 	progLbl.Parent = progBack
 
+	-- BRAND WATERMARK: a small corner stamp shown the whole run, so any clip someone records
+	-- carries the game name (free marketing for every shared transformation).
+	local markGui = Instance.new("ScreenGui")
+	markGui.Name = "ChoicesWatermark"
+	markGui.ResetOnSpawn = false
+	markGui.IgnoreGuiInset = true
+	markGui.DisplayOrder = 17
+	markGui.Enabled = false
+	markGui.Parent = player:WaitForChild("PlayerGui")
+	local mark = Instance.new("TextLabel")
+	mark.AnchorPoint = Vector2.new(1, 1)
+	mark.Position = UDim2.new(1, -16, 1, -14)
+	mark.Size = UDim2.fromOffset(250, 26)
+	mark.BackgroundTransparency = 1
+	mark.Font = Enum.Font.GothamBlack
+	mark.TextScaled = true
+	mark.TextXAlignment = Enum.TextXAlignment.Right
+	mark.TextColor3 = Color3.fromRGB(255, 235, 150)
+	mark.TextTransparency = 0.25
+	mark.TextStrokeTransparency = 0.4
+	mark.Text = "⚽ PENALTY KINGS · Roblox"
+	mark.Parent = markGui
+
 	Net.getEvent(Net.Events.ChoicesMode).OnClientEvent:Connect(function(payload: unknown)
 		local info = payload :: { active: boolean }
 		active = info.active
 		hud.setChoicesMode(active)
 		progGui.Enabled = active
+		markGui.Enabled = active
 		local cam = workspace.CurrentCamera
 		if active then
 			if cam then
@@ -761,8 +785,8 @@ do
 	local legendsLine = mk(4, 34, Enum.Font.GothamBold, Color3.fromRGB(120, 220, 255))
 	local newLine = mk(5, 48, Enum.Font.GothamBold, Color3.fromRGB(255, 220, 120))
 	local pointsLine = mk(6, 28, Enum.Font.GothamBold, Color3.fromRGB(225, 230, 240))
-	local shareLine = mk(7, 26, Enum.Font.Gotham, Color3.fromRGB(150, 160, 180))
-	shareLine.Text = "📸 Screenshot to share your result!"
+	local shareLine = mk(7, 26, Enum.Font.GothamBold, Color3.fromRGB(255, 235, 150))
+	shareLine.Text = "📸 Screenshot & share  ·  ⚽ PENALTY KINGS on Roblox"
 
 	local function verdictFor(rebel: number): (string, Color3)
 		if rebel >= 70 then
