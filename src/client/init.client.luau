@@ -1449,4 +1449,107 @@ task.delay(0.6, function()
 	loadingScreen:Destroy()
 end)
 
+-- ===== Record Mode: one tap/key hides ALL HUD + Roblox core UI for clean clip capture (keeps
+-- the brand watermark). For making TikTok/Shorts transformation clips. Toggle: the 🎥 button or
+-- the ] key. =====
+do
+	local UserInputService = game:GetService("UserInputService")
+	local StarterGui = game:GetService("StarterGui")
+	local pg = player:WaitForChild("PlayerGui")
+	local KEEP = { ChoicesWatermark = true, RecordToggle = true } -- never hide these
+	local recording = false
+	local hidden: { [ScreenGui]: boolean } = {}
+
+	local toggleGui = Instance.new("ScreenGui")
+	toggleGui.Name = "RecordToggle"
+	toggleGui.ResetOnSpawn = false
+	toggleGui.IgnoreGuiInset = true
+	toggleGui.DisplayOrder = 50
+	toggleGui.Parent = pg
+
+	local btn = Instance.new("TextButton")
+	btn.AnchorPoint = Vector2.new(1, 0)
+	btn.Position = UDim2.new(1, -12, 0, 96)
+	btn.Size = UDim2.fromOffset(42, 42)
+	btn.BackgroundColor3 = Color3.fromRGB(22, 24, 34)
+	btn.BackgroundTransparency = 0.35
+	btn.Text = "🎥"
+	btn.TextScaled = true
+	btn.AutoButtonColor = true
+	btn.Parent = toggleGui
+	local bc = Instance.new("UICorner")
+	bc.CornerRadius = UDim.new(1, 0)
+	bc.Parent = btn
+
+	local hint = Instance.new("TextLabel")
+	hint.AnchorPoint = Vector2.new(1, 0.5)
+	hint.Position = UDim2.new(1, -62, 0, 117)
+	hint.Size = UDim2.fromOffset(220, 26)
+	hint.BackgroundTransparency = 1
+	hint.Font = Enum.Font.GothamBold
+	hint.TextScaled = true
+	hint.TextXAlignment = Enum.TextXAlignment.Right
+	hint.TextColor3 = Color3.fromRGB(255, 120, 120)
+	hint.TextStrokeTransparency = 0.4
+	hint.TextTransparency = 1
+	hint.Text = "● REC — press ] or 🎥 to exit"
+	hint.Parent = toggleGui
+
+	local function setCore(on: boolean)
+		for _, e in
+			{
+				Enum.CoreGuiType.Backpack,
+				Enum.CoreGuiType.PlayerList,
+				Enum.CoreGuiType.Chat,
+				Enum.CoreGuiType.EmotesMenu,
+			}
+		do
+			pcall(function()
+				StarterGui:SetCoreGuiEnabled(e, on)
+			end)
+		end
+	end
+
+	local function setRecording(on: boolean)
+		if on == recording then
+			return
+		end
+		recording = on
+		if on then
+			hidden = {}
+			for _, g in pg:GetChildren() do
+				if g:IsA("ScreenGui") and not KEEP[g.Name] and g.Enabled then
+					hidden[g] = true
+					g.Enabled = false
+				end
+			end
+			setCore(false)
+			btn.BackgroundColor3 = Color3.fromRGB(210, 55, 55)
+			hint.TextTransparency = 0
+			TweenService:Create(hint, TweenInfo.new(2.5), { TextTransparency = 1 }):Play()
+		else
+			for g in hidden do
+				if g and g.Parent then
+					g.Enabled = true
+				end
+			end
+			hidden = {}
+			setCore(true)
+			btn.BackgroundColor3 = Color3.fromRGB(22, 24, 34)
+		end
+	end
+
+	btn.Activated:Connect(function()
+		setRecording(not recording)
+	end)
+	UserInputService.InputBegan:Connect(function(input: InputObject, processed: boolean)
+		if processed then
+			return
+		end
+		if input.KeyCode == Enum.KeyCode.RightBracket then
+			setRecording(not recording)
+		end
+	end)
+end
+
 print("[PenaltyKings] Client ready (PvP).")
