@@ -118,6 +118,23 @@ to its own product: Creator Dashboard → the gamepass/dev-product → **Icon**.
 > a bright glowing comet streaking across with a long sparkly rainbow particle trail, playful and
 > flashy, vibrant pink-to-gold gradient, [shared style]
 
+### 🪙 Coin packs (Handful / Bag / Chest — dev products)
+Keep these three a matching trio with **escalating quantity** so the tiers read at a glance (small
+→ medium → large). Same gold coins, same blue gradient, same lighting — only the container + amount
+change.
+
+**🤏 Handful of Coins** (small)
+> an open cupped hand holding a small handful of shiny gold coins, a few coins and sparkles spilling
+> over, warm gold glow, deep blue gradient background, [shared style]
+
+**💰 Bag of Coins** (medium)
+> an open burlap money bag with a gold "$" tag, overflowing with a generous pile of shiny gold
+> coins and sparkles, warm gold glow, deep blue gradient background, [shared style]
+
+**🧰 Chest of Coins** (large)
+> an open wooden treasure chest with gold trim, overflowing with a huge mound of shiny gold coins,
+> gems and bright sparkles bursting out, radiant gold glow, deep blue gradient background, [shared style]
+
 **Tips for these icons**
 - The store already shows the **name** under each, so keep the art **text-free** and iconic.
 - Keep **backgrounds simple** (single gradient) — busy backgrounds turn to mush at thumbnail size.
