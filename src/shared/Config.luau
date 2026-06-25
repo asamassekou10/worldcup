@@ -214,7 +214,7 @@ local Config = {
 		EffectLavaSky = 119978113345073, -- "Lava Skybox" -> the per-player HEAT sky
 		AuraRed = 12010147091, -- red particle aura -> the "fire" aura
 		AuraThunder = 9986036815, -- thunder particle aura -> the "thunder" aura
-		MascotCostume = 5084403018, -- "mochi" mascot -> a welded costume that hides your body
+		MascotCostume = 9203742993, -- "chalk bot" mascot -> a welded costume that hides your body
 		-- (deferred: run/jump anim packs 136548520660837 / 113442961065145 are raw
 		-- KeyframeSequences -- no published AnimationId -> can't be played at runtime as-is.)
 	},
