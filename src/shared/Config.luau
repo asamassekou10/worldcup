@@ -224,15 +224,15 @@ local Config = {
 	-- this is safe to ship before the badges exist). Badges show on player
 	-- profiles -> social proof + a reason to return.
 	Badges = {
-		FirstGoal = 0, -- score your first goal
-		FirstWin = 0, -- win your first match
-		HatTrick = 0, -- 3+ goals in a single match
-		Level5 = 0, -- reach level 5
-		Level10 = 0, -- reach level 10
-		Streak3 = 0, -- 3-day login streak
-		ChoicesFirstRun = 0, -- finish your first Choices run
-		ChoicesCollector = 0, -- collect 10 legends in the Choices runner
-		ChoicesAllLegends = 0, -- collect every legend
+		FirstGoal = 1068025231936397, -- "First Goal!" -> score your first goal
+		FirstWin = 1329407161724665, -- "Champion" -> win your first match
+		HatTrick = 548242867127741, -- "Hat-Trick Hero" -> 3+ goals in a single match
+		Level5 = 557114351104718, -- "Rising Star" -> reach level 5
+		Level10 = 554183029913837, -- "Pro Striker" -> reach level 10
+		Streak3 = 0, -- 3-day login streak (create tomorrow)
+		ChoicesFirstRun = 0, -- finish your first Choices run (create tomorrow)
+		ChoicesCollector = 0, -- collect 10 legends in the Choices runner (create tomorrow)
+		ChoicesAllLegends = 0, -- collect every legend (create tomorrow)
 	},
 }
 
