@@ -76,6 +76,57 @@ Ideogram, etc.
 
 ---
 
+## IN-GAME STORE ICONS (gamepasses & dev products)
+
+These replace the grey "ticket" placeholders on each pass/product. **512×512, 1:1.** Upload each
+to its own product: Creator Dashboard → the gamepass/dev-product → **Icon**.
+
+**Shared style (paste at the end of every prompt for a matching set):**
+> Roblox-style 3D rendered mobile game store icon, a single centered glossy object, vibrant
+> saturated colors, soft studio lighting, simple soft radial gradient background, clean, bold,
+> high detail, reads clearly at small size, no text --ar 1:1 --style raw
+
+### 🪙 Coin Doubler (2× Coins)
+> a shiny overflowing pile of gold coins with a glowing golden "x2" symbol floating above, gold
+> sparkles, warm gold glow, deep blue gradient background, [shared style]
+
+### ✖️ 2× Points
+> a glowing golden star bursting with energy and a sparkly motion trail, a small "x2" spark beside
+> it, dynamic, orange-and-gold glow, purple gradient background, [shared style]
+
+### 🏋️ 2× Training
+> a sleek modern gym treadmill glowing with a blue "x2" energy aura and little speed sparks, fit and
+> energetic, cyan-blue glow, dark gym gradient background, [shared style]
+
+### ⚡ Energy Drink
+> a glossy tall energy drink can crackling with electric blue lightning bolts, frosty condensation
+> droplets, dynamic and refreshing, electric cyan glow, [shared style]
+
+### 🎟️ Season Pass
+> a premium glowing golden pass / ticket with a tiny gold trophy and stars above it, luxurious and
+> exclusive, rich purple-and-gold gradient background, [shared style]
+
+### ⚡ Speed (run faster)
+> a single soccer cleat / boot leaning forward with glowing blue speed motion lines and a lightning
+> bolt streaking off the heel, fast and dynamic, electric blue glow, [shared style]
+
+### 👀 Sneak Peek
+> a glowing magical eye inside a crystal orb revealing two tiny glowing doorways (one blue, one
+> orange), mystical and clever, purple-violet glow with sparkles, [shared style]
+
+### ✨ Trail
+> a bright glowing comet streaking across with a long sparkly rainbow particle trail, playful and
+> flashy, vibrant pink-to-gold gradient, [shared style]
+
+**Tips for these icons**
+- The store already shows the **name** under each, so keep the art **text-free** and iconic.
+- Keep **backgrounds simple** (single gradient) — busy backgrounds turn to mush at thumbnail size.
+- Generate all 8 in **one session/style** so the row looks like a cohesive set.
+- If a generator won't do clean Roblox-render, **Leonardo (3D/"Cute Character" models)** and
+  **Ideogram** do these product icons well.
+
+---
+
 ## After you generate
 
 - Add the **title + 1 short benefit line** per image in Canva (big bold font, high contrast,
