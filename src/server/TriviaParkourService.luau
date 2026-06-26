@@ -1953,6 +1953,45 @@ function TriviaParkourService.start()
 	portalLabel.Text = "🤔 WOULD YOU RATHER?"
 	portalLabel.Parent = portalBb
 
+	-- BEACON: a tall glowing pillar of light + a high floating sign so the portal is visible from
+	-- across the hub (the #1 first-session fix -- players couldn't find this mode).
+	local beacon = block(
+		folder,
+		Vector3.new(2.5, 80, 2.5),
+		CFrame.new(pcBase + Vector3.new(0, 40, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+		Color3.fromRGB(150, 90, 255),
+		Enum.Material.Neon,
+		0.55
+	)
+	beacon.CanCollide = false
+	beacon.CanQuery = false
+	beacon.Shape = Enum.PartType.Cylinder
+	local beaconTop = block(
+		folder,
+		Vector3.new(0.5, 0.5, 0.5),
+		CFrame.new(pcBase + Vector3.new(0, 34, 0)),
+		Color3.new(0, 0, 0),
+		Enum.Material.SmoothPlastic,
+		1
+	)
+	beaconTop.CanCollide = false
+	beaconTop.CanQuery = false
+	local skyBb = Instance.new("BillboardGui")
+	skyBb.Size = UDim2.fromScale(22, 5)
+	skyBb.AlwaysOnTop = false
+	skyBb.MaxDistance = 600 -- visible from across the whole hub
+	skyBb.Adornee = beaconTop
+	skyBb.Parent = beaconTop
+	local skyLabel = Instance.new("TextLabel")
+	skyLabel.Size = UDim2.fromScale(1, 1)
+	skyLabel.BackgroundTransparency = 1
+	skyLabel.Font = Enum.Font.GothamBlack
+	skyLabel.TextScaled = true
+	skyLabel.TextColor3 = Color3.fromRGB(255, 235, 150)
+	skyLabel.TextStrokeTransparency = 0.2
+	skyLabel.Text = "🤔 WOULD YOU RATHER?\n▼ PLAY HERE ▼"
+	skyLabel.Parent = skyBb
+
 	local prompt = Instance.new("ProximityPrompt")
 	prompt.ActionText = "Run the Choices"
 	prompt.ObjectText = "🤔 Would You Rather"

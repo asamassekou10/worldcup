@@ -115,6 +115,10 @@ Net.Events = {
 	-- Choices runner: a door's PER-PLAYER effect (personal weather + a sound). Body/gameplay
 	-- effects are applied server-side; this carries the things only the local client can do.
 	ChoicesEffect = "ChoicesEffect", -- server -> client: { weather: string?, sound: string? }
+
+	-- "PLAY" menu: the client asks to be teleported to an activity (so solo players can find
+	-- every mode -- especially Would You Rather -- instead of a PvP-only Find Match button).
+	GotoActivity = "GotoActivity", -- client -> server: { key: string }
 }
 
 local folder: Folder?

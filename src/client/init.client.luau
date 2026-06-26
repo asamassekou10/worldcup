@@ -55,6 +55,34 @@ local function buildLoadingScreen(): ScreenGui
 		TweenInfo.new(0.8, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
 		{ TextTransparency = 0.5 }
 	):Play()
+
+	-- Rotating TIPS so the unavoidable load doubles as onboarding (teaches new players what to do).
+	local tip = Instance.new("TextLabel")
+	tip.Size = UDim2.fromScale(0.74, 0.06)
+	tip.Position = UDim2.fromScale(0.13, 0.63)
+	tip.BackgroundTransparency = 1
+	tip.Font = Theme.FontBody
+	tip.TextScaled = true
+	tip.TextWrapped = true
+	tip.TextColor3 = Theme.Text
+	tip.Text = ""
+	tip.Parent = bg
+	local tips = {
+		"💡 Tap 🎮 PLAY at the top to pick a mode!",
+		"💡 Run the 🤔 WOULD YOU RATHER portal — transform into Messi, the mascot & more!",
+		"💡 Collect legends to unlock rare glowing auras ✨",
+		"💡 Clear today's 🗓️ Daily 5 for bonus coins!",
+		"💡 Play with a friend for a daily Squad Bonus 👥",
+		"💡 Score in the World Cup penalty shootout ⚽",
+	}
+	task.spawn(function()
+		local i = 0
+		while gui.Parent do
+			i = i % #tips + 1
+			tip.Text = tips[i]
+			task.wait(2.5)
+		end
+	end)
 	return gui
 end
 local loadingScreen = buildLoadingScreen()
@@ -1559,6 +1587,196 @@ do
 		if input.KeyCode == Enum.KeyCode.RightBracket then
 			setRecording(not recording)
 		end
+	end)
+end
+
+-- ===== "PLAY" menu: a prominent launcher so new/solo players instantly find every mode (esp.
+-- Would You Rather) and teleport straight to it -- not stuck on a PvP-only Find Match button. =====
+do
+	local activities = {
+		{
+			key = "choices",
+			emoji = "🤔",
+			label = "Would You Rather",
+			desc = "Pick doors → transform into legends!",
+			featured = true,
+		},
+		{ key = "freekick", emoji = "🎯", label = "Free Kicks", desc = "Solo target practice" },
+		{
+			key = "gauntlet",
+			emoji = "🧤",
+			label = "Keeper Gauntlet",
+			desc = "Save 10 shots in a row",
+		},
+		{
+			key = "trivia",
+			emoji = "🧠",
+			label = "World Cup Trivia",
+			desc = "Test your football IQ",
+		},
+		{
+			key = "training",
+			emoji = "🏋️",
+			label = "Training Grounds",
+			desc = "Run to earn coins + XP",
+		},
+	}
+
+	local pg = player:WaitForChild("PlayerGui")
+	local gui = Instance.new("ScreenGui")
+	gui.Name = "PlayMenu"
+	gui.ResetOnSpawn = false
+	gui.IgnoreGuiInset = true
+	gui.DisplayOrder = 25
+	gui.Parent = pg
+
+	local function corner(g: GuiObject, r: number)
+		local c = Instance.new("UICorner")
+		c.CornerRadius = UDim.new(0, r)
+		c.Parent = g
+	end
+
+	-- modal backdrop + panel (hidden until the launcher is tapped)
+	local backdrop = Instance.new("TextButton")
+	backdrop.Size = UDim2.fromScale(1, 1)
+	backdrop.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+	backdrop.BackgroundTransparency = 0.45
+	backdrop.Text = ""
+	backdrop.AutoButtonColor = false
+	backdrop.Visible = false
+	backdrop.Parent = gui
+
+	local panel = Instance.new("Frame")
+	panel.AnchorPoint = Vector2.new(0.5, 0.5)
+	panel.Position = UDim2.fromScale(0.5, 0.5)
+	panel.Size = UDim2.fromOffset(440, 92 + #activities * 74)
+	panel.BackgroundColor3 = Color3.fromRGB(16, 20, 34)
+	panel.BorderSizePixel = 0
+	panel.Parent = backdrop
+	corner(panel, 18)
+	local pstroke = Instance.new("UIStroke")
+	pstroke.Color = Color3.fromRGB(255, 200, 70)
+	pstroke.Thickness = 3
+	pstroke.Parent = panel
+	local ppad = Instance.new("UIPadding")
+	ppad.PaddingTop = UDim.new(0, 14)
+	ppad.PaddingLeft = UDim.new(0, 14)
+	ppad.PaddingRight = UDim.new(0, 14)
+	ppad.Parent = panel
+	local plist = Instance.new("UIListLayout")
+	plist.Padding = UDim.new(0, 10)
+	plist.SortOrder = Enum.SortOrder.LayoutOrder
+	plist.Parent = panel
+
+	local heading = Instance.new("TextLabel")
+	heading.Size = UDim2.new(1, 0, 0, 36)
+	heading.BackgroundTransparency = 1
+	heading.Font = Enum.Font.GothamBlack
+	heading.TextScaled = true
+	heading.TextColor3 = Color3.fromRGB(255, 235, 150)
+	heading.Text = "🎮 PICK A MODE"
+	heading.LayoutOrder = 0
+	heading.Parent = panel
+
+	for i, a in activities do
+		local row = Instance.new("TextButton")
+		row.Size = UDim2.new(1, 0, 0, 64)
+		row.BackgroundColor3 = if a.featured
+			then Color3.fromRGB(40, 70, 50)
+			else Color3.fromRGB(28, 32, 46)
+		row.AutoButtonColor = true
+		row.Text = ""
+		row.LayoutOrder = i
+		row.Parent = panel
+		corner(row, 12)
+		if a.featured then
+			local rs = Instance.new("UIStroke")
+			rs.Color = Color3.fromRGB(120, 230, 150)
+			rs.Thickness = 2
+			rs.Parent = row
+		end
+		local em = Instance.new("TextLabel")
+		em.Size = UDim2.fromOffset(56, 64)
+		em.BackgroundTransparency = 1
+		em.Font = Enum.Font.GothamBlack
+		em.TextScaled = true
+		em.Text = a.emoji
+		em.Parent = row
+		local name = Instance.new("TextLabel")
+		name.Size = UDim2.new(1, -150, 0, 30)
+		name.Position = UDim2.fromOffset(60, 8)
+		name.BackgroundTransparency = 1
+		name.Font = Enum.Font.GothamBold
+		name.TextScaled = true
+		name.TextXAlignment = Enum.TextXAlignment.Left
+		name.TextColor3 = Color3.fromRGB(255, 255, 255)
+		name.Text = a.label .. (if a.featured then "  ⭐" else "")
+		name.Parent = row
+		local desc = Instance.new("TextLabel")
+		desc.Size = UDim2.new(1, -150, 0, 20)
+		desc.Position = UDim2.fromOffset(60, 38)
+		desc.BackgroundTransparency = 1
+		desc.Font = Enum.Font.Gotham
+		desc.TextScaled = true
+		desc.TextXAlignment = Enum.TextXAlignment.Left
+		desc.TextColor3 = Color3.fromRGB(180, 190, 210)
+		desc.Text = a.desc
+		desc.Parent = row
+		local go = Instance.new("TextLabel")
+		go.AnchorPoint = Vector2.new(1, 0.5)
+		go.Position = UDim2.new(1, -12, 0.5, 0)
+		go.Size = UDim2.fromOffset(60, 30)
+		go.BackgroundTransparency = 1
+		go.Font = Enum.Font.GothamBlack
+		go.TextScaled = true
+		go.TextColor3 = Color3.fromRGB(120, 230, 150)
+		go.Text = "GO ▶"
+		go.Parent = row
+		row.Activated:Connect(function()
+			Net.getEvent(Net.Events.GotoActivity):FireServer({ key = a.key })
+			backdrop.Visible = false
+		end)
+	end
+
+	-- the prominent launcher button (top-center, gently pulsing so new players notice it)
+	local launch = Instance.new("TextButton")
+	launch.AnchorPoint = Vector2.new(0.5, 0)
+	launch.Position = UDim2.new(0.5, 0, 0, 92)
+	launch.Size = UDim2.fromOffset(280, 50)
+	launch.BackgroundColor3 = Color3.fromRGB(90, 200, 120)
+	launch.Font = Enum.Font.GothamBlack
+	launch.TextScaled = true
+	launch.TextColor3 = Color3.fromRGB(12, 18, 14)
+	launch.Text = "🎮 PLAY — pick a mode"
+	launch.Parent = gui
+	corner(launch, 12)
+	local lstroke = Instance.new("UIStroke")
+	lstroke.Color = Color3.fromRGB(255, 255, 255)
+	lstroke.Thickness = 2
+	lstroke.Transparency = 0.3
+	lstroke.Parent = launch
+	TweenService:Create(
+		launch,
+		TweenInfo.new(0.9, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+		{ Size = UDim2.fromOffset(296, 54) }
+	):Play()
+
+	launch.Activated:Connect(function()
+		backdrop.Visible = true
+	end)
+	backdrop.Activated:Connect(function()
+		backdrop.Visible = false
+	end)
+
+	-- hide the launcher during runs / matches so it never clutters those screens
+	Net.getEvent(Net.Events.ChoicesMode).OnClientEvent:Connect(function(payload: unknown)
+		gui.Enabled = not (payload :: { active: boolean }).active
+	end)
+	Net.getEvent(Net.Events.RoundStart).OnClientEvent:Connect(function()
+		gui.Enabled = false
+	end)
+	Net.getEvent(Net.Events.MatchOver).OnClientEvent:Connect(function()
+		gui.Enabled = true
 	end)
 end
 
