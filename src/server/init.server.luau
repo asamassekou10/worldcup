@@ -47,6 +47,38 @@ for _, p in Players:GetPlayers() do
 end
 Players.PlayerAdded:Connect(watchPlayer)
 
+-- Squad bonus: if you're in a server with a friend, you BOTH get a once-per-day coin reward --
+-- the legit, ToS-clean "invite a friend" incentive (rewards playing together, not raw invites).
+local function checkSquad(player: Player)
+	task.spawn(function()
+		for _, other in Players:GetPlayers() do
+			if other ~= player then
+				local ok, isFriend = pcall(function()
+					return player:IsFriendsWith(other.UserId)
+				end)
+				if ok and isFriend then
+					for _, p in { player, other } do
+						local reward = DataService.claimSquadBonus(p)
+						if reward > 0 then
+							Net.getEvent(Net.Events.Notify):FireClient(p, {
+								message = string.format(
+									"👥 Squad bonus — playing with a friend! +%d coins",
+									reward
+								),
+							})
+						end
+					end
+					break
+				end
+			end
+		end
+	end)
+end
+Players.PlayerAdded:Connect(checkSquad)
+for _, p in Players:GetPlayers() do
+	task.spawn(checkSquad, p)
+end
+
 -- Make sure every remote exists before any client asks for it.
 for _, eventName in Net.Events do
 	Net.getEvent(eventName :: string)

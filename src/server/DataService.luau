@@ -51,6 +51,7 @@ local PROFILE_TEMPLATE: Types.ProfileData = {
 	ChoicesAurasOwned = {}, -- earned equippable auras (set of keys: sparkle/wind/ice/fire/thunder)
 	ChoicesQuestDay = 0,
 	ChoicesPackDay = 0,
+	SquadBonusDay = 0, -- once-per-day "played with a friend" reward
 	ChoicesIntroSeen = false,
 }
 
@@ -577,6 +578,26 @@ function DataService.unlockChoicesAura(player: Player, key: string): boolean
 	owned[key] = true
 	pushToClient(player)
 	return true
+end
+
+-- Social growth: a once-per-day reward for playing in a server with a friend (the "invite a
+-- friend" incentive). Returns the coin reward (0 if already claimed today).
+function DataService.claimSquadBonus(player: Player): number
+	local profile = profiles[player]
+	if not profile or not profile:IsActive() then
+		return 0
+	end
+	local data = profile.Data
+	local today = Progression.dayIndex()
+	if data.SquadBonusDay == today then
+		return 0
+	end
+	data.SquadBonusDay = today
+	local reward = 60
+	data.Coins += reward
+	updateLeaderstats(player)
+	pushToClient(player)
+	return reward
 end
 
 -- Choices runner: mark the first-time intro nudge as shown. Returns true only the FIRST

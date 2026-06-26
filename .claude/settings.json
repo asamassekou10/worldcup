@@ -181,7 +181,10 @@
       "Bash(~/.rokit/bin/selene src/server/SurvivalService.luau)",
       "Bash(awk '{print $5}')",
       "Bash(git check-ignore *)",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "WebFetch(domain:devforum.roblox.com)",
+      "Bash(~/.rokit/bin/stylua src/server/DataService.luau src/server/init.server.luau)",
+      "Bash(~/.rokit/bin/selene src/server/DataService.luau src/server/init.server.luau)"
     ]
   }
 }

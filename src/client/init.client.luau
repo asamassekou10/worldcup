@@ -182,6 +182,10 @@ Net.getEvent(Net.Events.QueueUpdate).OnClientEvent:Connect(function(payload: unk
 	hud.setQueue(info.inQueue, info.size)
 end)
 
+-- Growth nudge (Like/Favorite reminder + Invite button), assigned by the do-block near the end
+-- of this file and fired after positive moments (win / Choices finish). Self-throttled.
+local showGrowthNudge: (() -> ())? = nil
+
 Net.getEvent(Net.Events.RoundStart).OnClientEvent:Connect(function(payload: unknown)
 	inQueue = false
 	local info = payload :: Types.RoundStartInfo
@@ -218,6 +222,9 @@ Net.getEvent(Net.Events.MatchOver).OnClientEvent:Connect(function(payload: unkno
 	Sound.playMusic() -- back to the lobby tune
 	Camera.toLobby() -- hand control back to the walk-around camera
 	hud.showMatchOver(info)
+	if info.won and showGrowthNudge then
+		task.delay(3, showGrowthNudge) -- after the win screen lands
+	end
 end)
 
 Net.getEvent(Net.Events.ProfileUpdate).OnClientEvent:Connect(function(payload: unknown)
@@ -838,6 +845,9 @@ do
 		task.delay(8, function()
 			if token == mine then
 				close()
+			end
+			if showGrowthNudge then
+				showGrowthNudge() -- nudge after the shareable card closes
 			end
 		end)
 	end)
@@ -1550,6 +1560,110 @@ do
 			setRecording(not recording)
 		end
 	end)
+end
+
+-- ===== Growth nudge: after a win / Choices finish, a small reminder to Like + Favorite (boosts
+-- Roblox discovery) and a one-tap Invite Friends button (social/viral loop). No reward is tied to
+-- liking (Roblox policy) -- it's a pure reminder. Self-throttled so it never spams. =====
+do
+	local SocialService = game:GetService("SocialService")
+	local COOLDOWN = 200 -- seconds between nudges
+	local lastShown = -math.huge
+
+	local gui = Instance.new("ScreenGui")
+	gui.Name = "GrowthNudge"
+	gui.ResetOnSpawn = false
+	gui.DisplayOrder = 22
+	gui.Enabled = false
+	gui.Parent = player:WaitForChild("PlayerGui")
+
+	local panel = Instance.new("Frame")
+	panel.AnchorPoint = Vector2.new(0.5, 1)
+	panel.Position = UDim2.new(0.5, 0, 1, -170)
+	panel.Size = UDim2.fromOffset(380, 110)
+	panel.BackgroundColor3 = Color3.fromRGB(18, 22, 34)
+	panel.BackgroundTransparency = 0.08
+	panel.Parent = gui
+	local pcorner = Instance.new("UICorner")
+	pcorner.CornerRadius = UDim.new(0, 14)
+	pcorner.Parent = panel
+	local pstroke = Instance.new("UIStroke")
+	pstroke.Color = Color3.fromRGB(255, 200, 70)
+	pstroke.Thickness = 2
+	pstroke.Parent = panel
+
+	local titleLbl = Instance.new("TextLabel")
+	titleLbl.Size = UDim2.new(1, -20, 0, 24)
+	titleLbl.Position = UDim2.fromOffset(12, 8)
+	titleLbl.BackgroundTransparency = 1
+	titleLbl.Font = Enum.Font.GothamBlack
+	titleLbl.TextScaled = true
+	titleLbl.TextXAlignment = Enum.TextXAlignment.Left
+	titleLbl.TextColor3 = Color3.fromRGB(255, 235, 150)
+	titleLbl.Text = "Enjoying Penalty Kings? ⚽"
+	titleLbl.Parent = panel
+
+	local subLbl = Instance.new("TextLabel")
+	subLbl.Size = UDim2.new(1, -20, 0, 22)
+	subLbl.Position = UDim2.fromOffset(12, 34)
+	subLbl.BackgroundTransparency = 1
+	subLbl.Font = Enum.Font.GothamMedium
+	subLbl.TextScaled = true
+	subLbl.TextXAlignment = Enum.TextXAlignment.Left
+	subLbl.TextColor3 = Color3.fromRGB(210, 218, 230)
+	subLbl.Text = "Smash 👍 Like & ⭐ Favorite — it really helps us grow!"
+	subLbl.Parent = panel
+
+	local inviteBtn = Instance.new("TextButton")
+	inviteBtn.AnchorPoint = Vector2.new(0, 1)
+	inviteBtn.Position = UDim2.new(0, 12, 1, -10)
+	inviteBtn.Size = UDim2.fromOffset(214, 34)
+	inviteBtn.BackgroundColor3 = Color3.fromRGB(90, 200, 120)
+	inviteBtn.Font = Enum.Font.GothamBold
+	inviteBtn.TextScaled = true
+	inviteBtn.TextColor3 = Color3.fromRGB(15, 20, 15)
+	inviteBtn.Text = "🎁 Invite Friends"
+	inviteBtn.Parent = panel
+	local ibc = Instance.new("UICorner")
+	ibc.CornerRadius = UDim.new(0, 8)
+	ibc.Parent = inviteBtn
+
+	local closeBtn = Instance.new("TextButton")
+	closeBtn.AnchorPoint = Vector2.new(1, 1)
+	closeBtn.Position = UDim2.new(1, -12, 1, -10)
+	closeBtn.Size = UDim2.fromOffset(34, 34)
+	closeBtn.BackgroundColor3 = Color3.fromRGB(40, 44, 58)
+	closeBtn.Font = Enum.Font.GothamBold
+	closeBtn.TextScaled = true
+	closeBtn.TextColor3 = Color3.fromRGB(220, 226, 236)
+	closeBtn.Text = "✕"
+	closeBtn.Parent = panel
+	local cbc = Instance.new("UICorner")
+	cbc.CornerRadius = UDim.new(0, 8)
+	cbc.Parent = closeBtn
+
+	inviteBtn.Activated:Connect(function()
+		pcall(function()
+			SocialService:PromptGameInvite(player)
+		end)
+	end)
+	closeBtn.Activated:Connect(function()
+		gui.Enabled = false
+	end)
+
+	showGrowthNudge = function()
+		if os.clock() - lastShown < COOLDOWN then
+			return
+		end
+		lastShown = os.clock()
+		gui.Enabled = true
+		local shownAt = lastShown
+		task.delay(10, function()
+			if lastShown == shownAt then
+				gui.Enabled = false
+			end
+		end)
+	end
 end
 
 print("[PenaltyKings] Client ready (PvP).")
