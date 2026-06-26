@@ -119,6 +119,10 @@ Net.Events = {
 	-- "PLAY" menu: the client asks to be teleported to an activity (so solo players can find
 	-- every mode -- especially Would You Rather -- instead of a PvP-only Find Match button).
 	GotoActivity = "GotoActivity", -- client -> server: { key: string }
+
+	-- Idle "Football Club": passive coin earner (the daily return hook).
+	ClubState = "ClubState", -- server -> client: { level, ratePerHr, pending, cap, upgradeCost, coins }
+	ClubAction = "ClubAction", -- client -> server: { action: "claim" | "upgrade" }
 }
 
 local folder: Folder?

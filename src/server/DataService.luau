@@ -53,6 +53,8 @@ local PROFILE_TEMPLATE: Types.ProfileData = {
 	ChoicesPackDay = 0,
 	SquadBonusDay = 0, -- once-per-day "played with a friend" reward
 	ChoicesIntroSeen = false,
+	ClubLevel = 1, -- idle "Football Club": passive coin earner, upgraded to earn faster
+	ClubLastClaim = 0, -- os.time() of the last claim/upgrade (0 = uninitialised)
 }
 
 -- Systems that need a player's profile (e.g. cosmetics applying the equipped
@@ -578,6 +580,85 @@ function DataService.unlockChoicesAura(player: Player, key: string): boolean
 	owned[key] = true
 	pushToClient(player)
 	return true
+end
+
+-- ===== Idle "Football Club": a passive coin earner that accrues even while offline (the daily
+-- return hook), capped so it's "check in daily" not "afk forever", and upgraded to earn faster. =====
+local CLUB_BASE_RATE = 0.07 -- coins/sec at level 1
+local CLUB_OFFLINE_CAP = 8 * 3600 -- accrual caps at 8 hours
+
+local function clubPending(data: any): number
+	if data.ClubLastClaim <= 0 then
+		return 0
+	end
+	local elapsed = math.clamp(os.time() - data.ClubLastClaim, 0, CLUB_OFFLINE_CAP)
+	return math.floor(elapsed * CLUB_BASE_RATE * data.ClubLevel)
+end
+
+local function clubUpgradeCost(level: number): number
+	return math.floor(1200 * level ^ 1.5)
+end
+
+-- A snapshot for the client club panel.
+function DataService.clubInfo(player: Player): { [string]: number }?
+	local profile = profiles[player]
+	if not profile or not profile:IsActive() then
+		return nil
+	end
+	local data = profile.Data
+	if data.ClubLastClaim <= 0 then
+		data.ClubLastClaim = os.time() -- start accruing from first sight (no giant first claim)
+	end
+	return {
+		level = data.ClubLevel,
+		ratePerHr = math.floor(CLUB_BASE_RATE * data.ClubLevel * 3600),
+		pending = clubPending(data),
+		cap = math.floor(CLUB_BASE_RATE * data.ClubLevel * CLUB_OFFLINE_CAP),
+		upgradeCost = clubUpgradeCost(data.ClubLevel),
+		coins = data.Coins,
+	}
+end
+
+-- Bank the pending coins; resets the accrual clock. Returns the amount claimed.
+function DataService.clubClaim(player: Player): number
+	local profile = profiles[player]
+	if not profile or not profile:IsActive() then
+		return 0
+	end
+	local data = profile.Data
+	local pending = clubPending(data)
+	data.ClubLastClaim = os.time()
+	if pending > 0 then
+		data.Coins += pending
+		updateLeaderstats(player)
+		pushToClient(player)
+	end
+	return pending
+end
+
+-- Upgrade the club (banks pending first so the rate change is clean). Returns success + message.
+function DataService.clubUpgrade(player: Player): (boolean, string)
+	local profile = profiles[player]
+	if not profile or not profile:IsActive() then
+		return false, "No profile."
+	end
+	local data = profile.Data
+	local pending = clubPending(data)
+	if pending > 0 then
+		data.Coins += pending
+	end
+	data.ClubLastClaim = os.time()
+	local cost = clubUpgradeCost(data.ClubLevel)
+	if data.Coins < cost then
+		updateLeaderstats(player)
+		pushToClient(player)
+		return false, string.format("Need %d coins to upgrade your club.", cost)
+	end
+	data.Coins -= cost
+	data.ClubLevel += 1
+	updateLeaderstats(player)
+	pushToClient(player)
+	return true, string.format("🏟️ Club upgraded to Level %d!", data.ClubLevel)
 end
 
 -- Social growth: a once-per-day reward for playing in a server with a friend (the "invite a

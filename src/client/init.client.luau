@@ -1780,6 +1780,192 @@ do
 	end)
 end
 
+-- ===== Idle Football Club: a passive coin earner (the daily return hook). The button flips to a
+-- green "💰 +X" when coins have piled up; the panel banks them + upgrades the earn rate. =====
+do
+	local pg = player:WaitForChild("PlayerGui")
+	local info = { level = 1, ratePerHr = 0, pending = 0, cap = 0, upgradeCost = 0, coins = 0 }
+	local syncClock = os.clock()
+
+	local function rounded(g: GuiObject, r: number)
+		local c = Instance.new("UICorner")
+		c.CornerRadius = UDim.new(0, r)
+		c.Parent = g
+	end
+
+	local gui = Instance.new("ScreenGui")
+	gui.Name = "FootballClub"
+	gui.ResetOnSpawn = false
+	gui.IgnoreGuiInset = true
+	gui.DisplayOrder = 24
+	gui.Parent = pg
+
+	-- the launcher button (top-right, under the 🎥 record button)
+	local btn = Instance.new("TextButton")
+	btn.AnchorPoint = Vector2.new(1, 0)
+	btn.Position = UDim2.new(1, -12, 0, 150)
+	btn.Size = UDim2.fromOffset(140, 42)
+	btn.BackgroundColor3 = Color3.fromRGB(22, 24, 34)
+	btn.BackgroundTransparency = 0.1
+	btn.Font = Enum.Font.GothamBlack
+	btn.TextScaled = true
+	btn.TextColor3 = Color3.fromRGB(255, 235, 150)
+	btn.Text = "🏟️ CLUB"
+	btn.Parent = gui
+	rounded(btn, 10)
+
+	-- modal panel
+	local backdrop = Instance.new("TextButton")
+	backdrop.Size = UDim2.fromScale(1, 1)
+	backdrop.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+	backdrop.BackgroundTransparency = 0.45
+	backdrop.Text = ""
+	backdrop.AutoButtonColor = false
+	backdrop.Visible = false
+	backdrop.Parent = gui
+
+	local panel = Instance.new("Frame")
+	panel.AnchorPoint = Vector2.new(0.5, 0.5)
+	panel.Position = UDim2.fromScale(0.5, 0.5)
+	panel.Size = UDim2.fromOffset(420, 340)
+	panel.BackgroundColor3 = Color3.fromRGB(16, 20, 34)
+	panel.BorderSizePixel = 0
+	panel.Parent = backdrop
+	rounded(panel, 18)
+	local ps = Instance.new("UIStroke")
+	ps.Color = Color3.fromRGB(255, 200, 70)
+	ps.Thickness = 3
+	ps.Parent = panel
+
+	local function mk(
+		y: number,
+		h: number,
+		font: Enum.Font,
+		color: Color3,
+		scaled: boolean
+	): TextLabel
+		local t = Instance.new("TextLabel")
+		t.Size = UDim2.new(1, -28, 0, h)
+		t.Position = UDim2.fromOffset(14, y)
+		t.BackgroundTransparency = 1
+		t.Font = font
+		t.TextScaled = scaled
+		t.TextColor3 = color
+		t.Text = ""
+		t.Parent = panel
+		return t
+	end
+	local titleLbl = mk(14, 30, Enum.Font.GothamBlack, Color3.fromRGB(255, 235, 150), true)
+	titleLbl.Text = "🏟️ MY FOOTBALL CLUB"
+	local levelLbl = mk(50, 24, Enum.Font.GothamBold, Color3.fromRGB(210, 218, 230), true)
+	local pendingLbl = mk(86, 56, Enum.Font.GothamBlack, Color3.fromRGB(120, 230, 150), true)
+	local capLbl = mk(146, 20, Enum.Font.Gotham, Color3.fromRGB(160, 170, 190), true)
+
+	local claimBtn = Instance.new("TextButton")
+	claimBtn.Position = UDim2.fromOffset(14, 182)
+	claimBtn.Size = UDim2.new(1, -28, 0, 52)
+	claimBtn.BackgroundColor3 = Color3.fromRGB(90, 200, 120)
+	claimBtn.Font = Enum.Font.GothamBlack
+	claimBtn.TextScaled = true
+	claimBtn.TextColor3 = Color3.fromRGB(12, 18, 14)
+	claimBtn.Text = "💰 CLAIM"
+	claimBtn.Parent = panel
+	rounded(claimBtn, 12)
+
+	local upgradeBtn = Instance.new("TextButton")
+	upgradeBtn.Position = UDim2.fromOffset(14, 244)
+	upgradeBtn.Size = UDim2.new(1, -28, 0, 46)
+	upgradeBtn.BackgroundColor3 = Color3.fromRGB(60, 130, 230)
+	upgradeBtn.Font = Enum.Font.GothamBold
+	upgradeBtn.TextScaled = true
+	upgradeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+	upgradeBtn.Text = "⬆️ Upgrade"
+	upgradeBtn.Parent = panel
+	rounded(upgradeBtn, 12)
+
+	local closeBtn = Instance.new("TextButton")
+	closeBtn.AnchorPoint = Vector2.new(1, 0)
+	closeBtn.Position = UDim2.new(1, -10, 0, 10)
+	closeBtn.Size = UDim2.fromOffset(34, 34)
+	closeBtn.BackgroundColor3 = Color3.fromRGB(40, 44, 58)
+	closeBtn.Font = Enum.Font.GothamBold
+	closeBtn.TextScaled = true
+	closeBtn.TextColor3 = Color3.fromRGB(220, 226, 236)
+	closeBtn.Text = "✕"
+	closeBtn.Parent = panel
+	rounded(closeBtn, 8)
+
+	local function ratePerSec(): number
+		return info.ratePerHr / 3600
+	end
+	local function livePending(): number
+		return math.min(info.pending + (os.clock() - syncClock) * ratePerSec(), info.cap)
+	end
+	local function refresh()
+		levelLbl.Text =
+			string.format("Level %d  ·  Earning %d 🪙/hr", info.level, info.ratePerHr)
+		pendingLbl.Text = "💰 " .. tostring(math.floor(livePending()))
+		capLbl.Text = string.format("banked at %d max — claim before it fills!", info.cap)
+		upgradeBtn.Text = string.format("⬆️ Upgrade earn rate — %d 🪙", info.upgradeCost)
+	end
+
+	Net.getEvent(Net.Events.ClubState).OnClientEvent:Connect(function(payload: unknown)
+		info = payload :: typeof(info)
+		syncClock = os.clock()
+		refresh()
+	end)
+	claimBtn.Activated:Connect(function()
+		Net.getEvent(Net.Events.ClubAction):FireServer({ action = "claim" })
+	end)
+	upgradeBtn.Activated:Connect(function()
+		Net.getEvent(Net.Events.ClubAction):FireServer({ action = "upgrade" })
+	end)
+	btn.Activated:Connect(function()
+		refresh()
+		backdrop.Visible = true
+	end)
+	backdrop.Activated:Connect(function()
+		backdrop.Visible = false
+	end)
+	closeBtn.Activated:Connect(function()
+		backdrop.Visible = false
+	end)
+
+	-- ticking loop: flip the button to a green "💰 +X" when a worthwhile pile has built up
+	task.spawn(function()
+		while true do
+			local p = math.floor(livePending())
+			local worth = math.max(200, info.ratePerHr / 12) -- ~5 minutes of earnings
+			if p >= worth then
+				btn.Text = if p >= 1000
+					then string.format("💰 +%.1fk", p / 1000)
+					else ("💰 +" .. tostring(p))
+				btn.BackgroundColor3 = Color3.fromRGB(90, 200, 120)
+				btn.TextColor3 = Color3.fromRGB(12, 18, 14)
+			else
+				btn.Text = "🏟️ CLUB"
+				btn.BackgroundColor3 = Color3.fromRGB(22, 24, 34)
+				btn.TextColor3 = Color3.fromRGB(255, 235, 150)
+			end
+			if backdrop.Visible then
+				refresh()
+			end
+			task.wait(1)
+		end
+	end)
+
+	-- hide during runs / matches
+	Net.getEvent(Net.Events.ChoicesMode).OnClientEvent:Connect(function(payload: unknown)
+		gui.Enabled = not (payload :: { active: boolean }).active
+	end)
+	Net.getEvent(Net.Events.RoundStart).OnClientEvent:Connect(function()
+		gui.Enabled = false
+	end)
+	Net.getEvent(Net.Events.MatchOver).OnClientEvent:Connect(function()
+		gui.Enabled = true
+	end)
+end
+
 -- ===== Growth nudge: after a win / Choices finish, a small reminder to Like + Favorite (boosts
 -- Roblox discovery) and a one-tap Invite Friends button (social/viral loop). No reward is tied to
 -- liking (Roblox policy) -- it's a pure reminder. Self-throttled so it never spams. =====

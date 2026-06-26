@@ -187,7 +187,9 @@
       "Bash(~/.rokit/bin/selene src/server/DataService.luau src/server/init.server.luau)",
       "Bash(~/.rokit/bin/stylua src/client/init.client.luau src/server/ActivityService.luau src/server/init.server.luau src/shared/Net.luau)",
       "Bash(~/.rokit/bin/selene src/client/init.client.luau src/server/ActivityService.luau src/server/init.server.luau)",
-      "Bash(~/.rokit/bin/stylua src/client/init.client.luau src/server/TriviaParkourService.luau)"
+      "Bash(~/.rokit/bin/stylua src/client/init.client.luau src/server/TriviaParkourService.luau)",
+      "Bash(~/.rokit/bin/stylua src/client/init.client.luau src/server/DataService.luau src/server/ClubService.luau src/server/init.server.luau src/shared/Net.luau)",
+      "Bash(~/.rokit/bin/selene src/client/init.client.luau src/server/DataService.luau src/server/ClubService.luau src/server/init.server.luau)"
     ]
   }
 }
