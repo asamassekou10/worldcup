@@ -123,6 +123,11 @@ Net.Events = {
 	-- Idle "Football Club": passive coin earner (the daily return hook).
 	ClubState = "ClubState", -- server -> client: { level, ratePerHr, pending, cap, upgradeCost, coins }
 	ClubAction = "ClubAction", -- client -> server: { action: "claim" | "upgrade" }
+
+	-- Collectible cards: earn packs, open them, complete the set.
+	CardState = "CardState", -- server -> client: { owned, packs, distinct, total }
+	CardOpen = "CardOpen", -- client -> server: (no payload) open one pack
+	CardOpened = "CardOpened", -- server -> client: { rolled: {string}, newIds: {[string]: boolean} }
 }
 
 local folder: Folder?

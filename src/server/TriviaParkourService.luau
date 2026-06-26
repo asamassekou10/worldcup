@@ -2731,6 +2731,7 @@ function TriviaParkourService.start()
 		end
 		runState[player] = nil
 		DataService.grantReward(player, REWARD_FINISH, XP_FINISH)
+		DataService.grantPack(player, 1) -- a card pack for finishing a run
 		submitScore(player, total)
 		-- once-per-day "finished a run" bonus
 		local dailyBonus = DataService.claimChoicesDaily(player)

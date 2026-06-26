@@ -15,6 +15,7 @@ local Catalog = require(Shared:WaitForChild("Catalog"))
 local Progression = require(Shared:WaitForChild("Progression"))
 local WorldCup = require(Shared:WaitForChild("WorldCup"))
 local SeasonPass = require(Shared:WaitForChild("SeasonPass"))
+local CardBank = require(Shared:WaitForChild("CardBank"))
 
 local ProfileStore = require(script.Parent:WaitForChild("ProfileStore"))
 local BadgeService = require(script.Parent:WaitForChild("BadgeService"))
@@ -55,6 +56,9 @@ local PROFILE_TEMPLATE: Types.ProfileData = {
 	ChoicesIntroSeen = false,
 	ClubLevel = 1, -- idle "Football Club": passive coin earner, upgraded to earn faster
 	ClubLastClaim = 0, -- os.time() of the last claim/upgrade (0 = uninitialised)
+	CardsOwned = {}, -- collectible cards: id -> count
+	CardPacks = 0, -- unopened card packs
+	CardSetClaimed = false, -- one-time "completed the set" bonus paid?
 }
 
 -- Systems that need a player's profile (e.g. cosmetics applying the equipped
@@ -341,6 +345,7 @@ function DataService.applyMatchResult(
 	if won then
 		data.Wins += 1
 		payout += Config.Rewards.Win
+		data.CardPacks += 1 -- a card pack for winning a match
 	else
 		data.Losses += 1
 		payout += Config.Rewards.Loss
@@ -659,6 +664,82 @@ function DataService.clubUpgrade(player: Player): (boolean, string)
 	updateLeaderstats(player)
 	pushToClient(player)
 	return true, string.format("🏟️ Club upgraded to Level %d!", data.ClubLevel)
+end
+
+-- ===== Collectible cards: earn packs from playing, open them for cards, complete the set. =====
+local CARDS_PER_PACK = 3
+local CARD_SET_REWARD = 5000 -- one-time payout for completing the whole collection
+
+-- Grant `n` unopened packs (from finishing runs / winning matches).
+function DataService.grantPack(player: Player, n: number)
+	local profile = profiles[player]
+	if not profile or not profile:IsActive() then
+		return
+	end
+	profile.Data.CardPacks += n
+	pushToClient(player)
+end
+
+-- Snapshot for the client card collection panel.
+function DataService.cardInfo(player: Player): { [string]: any }?
+	local profile = profiles[player]
+	if not profile or not profile:IsActive() then
+		return nil
+	end
+	local data = profile.Data
+	local distinct = 0
+	for _ in data.CardsOwned do
+		distinct += 1
+	end
+	return {
+		owned = data.CardsOwned,
+		packs = data.CardPacks,
+		distinct = distinct,
+		total = CardBank.count(),
+	}
+end
+
+-- Open ONE pack: rolls CARDS_PER_PACK cards, banks them, pays the set-completion bonus once.
+-- Returns the rolled card ids + which were NEW (for the reveal), or nil if no packs.
+function DataService.openPack(
+	player: Player
+): { rolled: { string }, newIds: { [string]: boolean } }?
+	local profile = profiles[player]
+	if not profile or not profile:IsActive() then
+		return nil
+	end
+	local data = profile.Data
+	if data.CardPacks <= 0 then
+		return nil
+	end
+	data.CardPacks -= 1
+	local rolled: { string } = {}
+	local newIds: { [string]: boolean } = {}
+	for _ = 1, CARDS_PER_PACK do
+		local id = CardBank.rollOne()
+		if (data.CardsOwned[id] or 0) == 0 then
+			newIds[id] = true
+		end
+		data.CardsOwned[id] = (data.CardsOwned[id] or 0) + 1
+		table.insert(rolled, id)
+	end
+	-- one-time "completed the collection" jackpot
+	if not data.CardSetClaimed then
+		local distinct = 0
+		for _ in data.CardsOwned do
+			distinct += 1
+		end
+		if distinct >= CardBank.count() then
+			data.CardSetClaimed = true
+			data.Coins += CARD_SET_REWARD
+			Net.getEvent(Net.Events.Notify):FireClient(player, {
+				message = string.format("🃏 COLLECTION COMPLETE! +%d coins!", CARD_SET_REWARD),
+			})
+		end
+	end
+	updateLeaderstats(player)
+	pushToClient(player)
+	return { rolled = rolled, newIds = newIds }
 end
 
 -- Social growth: a once-per-day reward for playing in a server with a friend (the "invite a

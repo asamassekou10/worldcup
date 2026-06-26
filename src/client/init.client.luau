@@ -1966,6 +1966,304 @@ do
 	end)
 end
 
+-- ===== Collectible cards: a 🃏 CARDS button (badge when packs are ready) opens a collection grid
+-- with an OPEN PACK button + a reveal. Earning + completing the set keeps players grinding. =====
+do
+	local CardBank = require(Shared:WaitForChild("CardBank"))
+	local pg = player:WaitForChild("PlayerGui")
+	local owned: { [string]: number } = {}
+	local packs = 0
+
+	local function rounded(g: GuiObject, r: number)
+		local c = Instance.new("UICorner")
+		c.CornerRadius = UDim.new(0, r)
+		c.Parent = g
+	end
+
+	local gui = Instance.new("ScreenGui")
+	gui.Name = "Cards"
+	gui.ResetOnSpawn = false
+	gui.IgnoreGuiInset = true
+	gui.DisplayOrder = 24
+	gui.Parent = pg
+
+	local btn = Instance.new("TextButton")
+	btn.AnchorPoint = Vector2.new(1, 0)
+	btn.Position = UDim2.new(1, -12, 0, 202)
+	btn.Size = UDim2.fromOffset(140, 42)
+	btn.BackgroundColor3 = Color3.fromRGB(22, 24, 34)
+	btn.BackgroundTransparency = 0.1
+	btn.Font = Enum.Font.GothamBlack
+	btn.TextScaled = true
+	btn.TextColor3 = Color3.fromRGB(255, 235, 150)
+	btn.Text = "🃏 CARDS"
+	btn.Parent = gui
+	rounded(btn, 10)
+
+	local backdrop = Instance.new("TextButton")
+	backdrop.Size = UDim2.fromScale(1, 1)
+	backdrop.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+	backdrop.BackgroundTransparency = 0.45
+	backdrop.Text = ""
+	backdrop.AutoButtonColor = false
+	backdrop.Visible = false
+	backdrop.Parent = gui
+
+	local panel = Instance.new("Frame")
+	panel.AnchorPoint = Vector2.new(0.5, 0.5)
+	panel.Position = UDim2.fromScale(0.5, 0.5)
+	panel.Size = UDim2.fromOffset(470, 520)
+	panel.BackgroundColor3 = Color3.fromRGB(16, 20, 34)
+	panel.BorderSizePixel = 0
+	panel.Parent = backdrop
+	rounded(panel, 18)
+	local ps = Instance.new("UIStroke")
+	ps.Color = Color3.fromRGB(255, 200, 70)
+	ps.Thickness = 3
+	ps.Parent = panel
+
+	local titleLbl = Instance.new("TextLabel")
+	titleLbl.Size = UDim2.new(1, -28, 0, 30)
+	titleLbl.Position = UDim2.fromOffset(14, 12)
+	titleLbl.BackgroundTransparency = 1
+	titleLbl.Font = Enum.Font.GothamBlack
+	titleLbl.TextScaled = true
+	titleLbl.TextColor3 = Color3.fromRGB(255, 235, 150)
+	titleLbl.Text = "🃏 MY CARDS"
+	titleLbl.Parent = panel
+
+	local scroll = Instance.new("ScrollingFrame")
+	scroll.Position = UDim2.fromOffset(14, 52)
+	scroll.Size = UDim2.new(1, -28, 1, -126)
+	scroll.BackgroundTransparency = 1
+	scroll.BorderSizePixel = 0
+	scroll.ScrollBarThickness = 5
+	scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	scroll.CanvasSize = UDim2.new()
+	scroll.Parent = panel
+	local grid = Instance.new("UIGridLayout")
+	grid.CellSize = UDim2.fromOffset(102, 78)
+	grid.CellPadding = UDim2.fromOffset(8, 8)
+	grid.SortOrder = Enum.SortOrder.LayoutOrder
+	grid.Parent = scroll
+
+	type Tile = { frame: Frame, name: TextLabel, count: TextLabel }
+	local tiles: { [string]: Tile } = {}
+	for i, c in CardBank.Cards do
+		local rarity = CardBank.RarityColor[c.rarity] or Color3.fromRGB(150, 150, 150)
+		local tile = Instance.new("Frame")
+		tile.BackgroundColor3 = Color3.fromRGB(26, 30, 44)
+		tile.LayoutOrder = (CardBank.RarityOrder[c.rarity] or 9) * 100 + i
+		tile.Parent = scroll
+		rounded(tile, 8)
+		local ts = Instance.new("UIStroke")
+		ts.Color = rarity
+		ts.Thickness = 2
+		ts.Parent = tile
+		local nm = Instance.new("TextLabel")
+		nm.Size = UDim2.fromScale(0.92, 0.7)
+		nm.Position = UDim2.fromScale(0.04, 0.06)
+		nm.BackgroundTransparency = 1
+		nm.Font = Enum.Font.GothamBold
+		nm.TextScaled = true
+		nm.TextWrapped = true
+		nm.TextColor3 = Color3.fromRGB(255, 255, 255)
+		nm.Text = c.name
+		nm.Parent = tile
+		local rl = Instance.new("TextLabel")
+		rl.Size = UDim2.fromScale(0.92, 0.22)
+		rl.Position = UDim2.fromScale(0.04, 0.76)
+		rl.BackgroundTransparency = 1
+		rl.Font = Enum.Font.GothamBold
+		rl.TextScaled = true
+		rl.TextColor3 = rarity
+		rl.Text = CardBank.RarityLabel[c.rarity] or ""
+		rl.Parent = tile
+		local cnt = Instance.new("TextLabel")
+		cnt.AnchorPoint = Vector2.new(1, 0)
+		cnt.Position = UDim2.fromScale(0.97, 0.04)
+		cnt.Size = UDim2.fromScale(0.3, 0.22)
+		cnt.BackgroundTransparency = 1
+		cnt.Font = Enum.Font.GothamBlack
+		cnt.TextScaled = true
+		cnt.TextXAlignment = Enum.TextXAlignment.Right
+		cnt.TextColor3 = Color3.fromRGB(255, 235, 150)
+		cnt.Text = ""
+		cnt.Visible = false
+		cnt.Parent = tile
+		tiles[c.id] = { frame = tile, name = nm, count = cnt }
+	end
+
+	local openBtn = Instance.new("TextButton")
+	openBtn.AnchorPoint = Vector2.new(0.5, 1)
+	openBtn.Position = UDim2.new(0.5, 0, 1, -14)
+	openBtn.Size = UDim2.new(1, -28, 0, 52)
+	openBtn.Font = Enum.Font.GothamBlack
+	openBtn.TextScaled = true
+	openBtn.TextColor3 = Color3.fromRGB(12, 18, 14)
+	openBtn.Text = "🎁 OPEN PACK"
+	openBtn.Parent = panel
+	rounded(openBtn, 12)
+
+	local closeBtn = Instance.new("TextButton")
+	closeBtn.AnchorPoint = Vector2.new(1, 0)
+	closeBtn.Position = UDim2.new(1, -10, 0, 10)
+	closeBtn.Size = UDim2.fromOffset(34, 34)
+	closeBtn.BackgroundColor3 = Color3.fromRGB(40, 44, 58)
+	closeBtn.Font = Enum.Font.GothamBold
+	closeBtn.TextScaled = true
+	closeBtn.TextColor3 = Color3.fromRGB(220, 226, 236)
+	closeBtn.Text = "✕"
+	closeBtn.Parent = panel
+	rounded(closeBtn, 8)
+
+	local function refresh()
+		local distinct = 0
+		for _ in owned do
+			distinct += 1
+		end
+		titleLbl.Text = string.format("🃏 MY CARDS  (%d/%d)", distinct, CardBank.count())
+		for id, t in tiles do
+			local n = owned[id] or 0
+			t.frame.BackgroundTransparency = if n > 0 then 0.05 else 0.65
+			t.name.TextTransparency = if n > 0 then 0 else 0.55
+			t.count.Text = "x" .. tostring(n)
+			t.count.Visible = n > 1
+		end
+		if packs > 0 then
+			openBtn.Text = string.format("🎁 OPEN PACK  (%d)", packs)
+			openBtn.BackgroundColor3 = Color3.fromRGB(90, 200, 120)
+			btn.Text = "🃏 OPEN " .. tostring(packs)
+			btn.BackgroundColor3 = Color3.fromRGB(90, 200, 120)
+			btn.TextColor3 = Color3.fromRGB(12, 18, 14)
+		else
+			openBtn.Text = "No packs — play to earn one!"
+			openBtn.BackgroundColor3 = Color3.fromRGB(50, 54, 70)
+			btn.Text = "🃏 CARDS"
+			btn.BackgroundColor3 = Color3.fromRGB(22, 24, 34)
+			btn.TextColor3 = Color3.fromRGB(255, 235, 150)
+		end
+	end
+
+	-- pack-open reveal overlay
+	local revealBg = Instance.new("TextButton")
+	revealBg.Size = UDim2.fromScale(1, 1)
+	revealBg.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+	revealBg.BackgroundTransparency = 0.3
+	revealBg.Text = ""
+	revealBg.AutoButtonColor = false
+	revealBg.Visible = false
+	revealBg.ZIndex = 5
+	revealBg.Parent = gui
+	local revealRow = Instance.new("Frame")
+	revealRow.AnchorPoint = Vector2.new(0.5, 0.5)
+	revealRow.Position = UDim2.fromScale(0.5, 0.5)
+	revealRow.Size = UDim2.fromOffset(360, 200)
+	revealRow.BackgroundTransparency = 1
+	revealRow.ZIndex = 6
+	revealRow.Parent = revealBg
+	local revealLayout = Instance.new("UIListLayout")
+	revealLayout.FillDirection = Enum.FillDirection.Horizontal
+	revealLayout.Padding = UDim.new(0, 10)
+	revealLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	revealLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+	revealLayout.Parent = revealRow
+	revealBg.Activated:Connect(function()
+		revealBg.Visible = false
+	end)
+
+	local function showReveal(rolled: { string }, newIds: { [string]: boolean })
+		for _, ch in revealRow:GetChildren() do
+			if ch:IsA("Frame") then
+				ch:Destroy()
+			end
+		end
+		for _, id in rolled do
+			local c = CardBank.byId(id)
+			if c then
+				local rarity = CardBank.RarityColor[c.rarity] or Color3.fromRGB(150, 150, 150)
+				local card = Instance.new("Frame")
+				card.Size = UDim2.fromOffset(108, 150)
+				card.BackgroundColor3 = Color3.fromRGB(20, 24, 38)
+				card.ZIndex = 6
+				card.Parent = revealRow
+				rounded(card, 10)
+				local cs = Instance.new("UIStroke")
+				cs.Color = rarity
+				cs.Thickness = 3
+				cs.Parent = card
+				local nm = Instance.new("TextLabel")
+				nm.Size = UDim2.fromScale(0.9, 0.6)
+				nm.Position = UDim2.fromScale(0.05, 0.08)
+				nm.BackgroundTransparency = 1
+				nm.Font = Enum.Font.GothamBold
+				nm.TextScaled = true
+				nm.TextWrapped = true
+				nm.TextColor3 = Color3.fromRGB(255, 255, 255)
+				nm.Text = c.name
+				nm.ZIndex = 7
+				nm.Parent = card
+				local rl = Instance.new("TextLabel")
+				rl.Size = UDim2.fromScale(0.9, 0.16)
+				rl.Position = UDim2.fromScale(0.05, 0.74)
+				rl.BackgroundTransparency = 1
+				rl.Font = Enum.Font.GothamBlack
+				rl.TextScaled = true
+				rl.TextColor3 = rarity
+				rl.Text = if newIds[id] then "✨ NEW" else CardBank.RarityLabel[c.rarity]
+				rl.ZIndex = 7
+				rl.Parent = card
+				card.Size = UDim2.fromOffset(10, 150)
+				TweenService:Create(
+					card,
+					TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+					{ Size = UDim2.fromOffset(108, 150) }
+				):Play()
+			end
+		end
+		revealBg.Visible = true
+		task.delay(4, function()
+			revealBg.Visible = false
+		end)
+	end
+
+	Net.getEvent(Net.Events.CardState).OnClientEvent:Connect(function(payload: unknown)
+		local info = payload :: { owned: { [string]: number }, packs: number }
+		owned = info.owned or {}
+		packs = info.packs or 0
+		refresh()
+	end)
+	Net.getEvent(Net.Events.CardOpened).OnClientEvent:Connect(function(payload: unknown)
+		local r = payload :: { rolled: { string }, newIds: { [string]: boolean } }
+		showReveal(r.rolled or {}, r.newIds or {})
+	end)
+	openBtn.Activated:Connect(function()
+		if packs > 0 then
+			Net.getEvent(Net.Events.CardOpen):FireServer()
+		end
+	end)
+	btn.Activated:Connect(function()
+		refresh()
+		backdrop.Visible = true
+	end)
+	backdrop.Activated:Connect(function()
+		backdrop.Visible = false
+	end)
+	closeBtn.Activated:Connect(function()
+		backdrop.Visible = false
+	end)
+
+	Net.getEvent(Net.Events.ChoicesMode).OnClientEvent:Connect(function(payload: unknown)
+		gui.Enabled = not (payload :: { active: boolean }).active
+	end)
+	Net.getEvent(Net.Events.RoundStart).OnClientEvent:Connect(function()
+		gui.Enabled = false
+	end)
+	Net.getEvent(Net.Events.MatchOver).OnClientEvent:Connect(function()
+		gui.Enabled = true
+	end)
+end
+
 -- ===== Growth nudge: after a win / Choices finish, a small reminder to Like + Favorite (boosts
 -- Roblox discovery) and a one-tap Invite Friends button (social/viral loop). No reward is tied to
 -- liking (Roblox policy) -- it's a pure reminder. Self-throttled so it never spams. =====
