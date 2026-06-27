@@ -1808,25 +1808,28 @@ function TriviaParkourService.start()
 	-- alternating lanes (nudging you to switch sides). Touch grants a few coins once per player per
 	-- run -- it varies the rhythm so the runway isn't just choice → choice → choice.
 	local COIN_REWARD = 12
+	local coinTemplate = Assets.template(Config.Models.ChoicesCoin) -- one cached load for all coins
 	for i = 1, NUM_GATES - 1 do
 		local zz = gateZ(i) + GATE_SPACING / 2
 		local lane = if i % 2 == 0 then -LANE_OFF else LANE_OFF
-		local coin = Instance.new("Part")
-		coin.Name = "CoinPickup"
-		coin.Shape = Enum.PartType.Cylinder
-		coin.Size = Vector3.new(0.4, 3, 3)
-		coin.Anchored = true
-		coin.CanCollide = false
-		coin.Material = Enum.Material.Neon
-		coin.Color = Color3.fromRGB(255, 205, 60)
-		-- the 90° yaw turns the cylinder's flat face toward the approaching runner (who runs +Z)
-		coin.CFrame = CFrame.new(O.X + lane, Y + 3.4, zz) * CFrame.Angles(0, math.rad(90), 0)
-		coin.Parent = folder
+		local center = CFrame.new(O.X + lane, Y + 3.6, zz)
+
+		-- Invisible hitbox: the robust collection catcher. It also carries the glow + sound, so coins
+		-- still work and read even if the model asset fails to load.
+		local hit = Instance.new("Part")
+		hit.Name = "CoinPickup"
+		hit.Size = Vector3.new(5, 7, 5)
+		hit.Anchored = true
+		hit.CanCollide = false
+		hit.CanQuery = false
+		hit.Transparency = 1
+		hit.CFrame = center
+		hit.Parent = folder
 		local light = Instance.new("PointLight")
-		light.Color = coin.Color
+		light.Color = Color3.fromRGB(255, 205, 60)
 		light.Range = 7
 		light.Brightness = 1.1
-		light.Parent = coin
+		light.Parent = hit
 		local aura = Instance.new("ParticleEmitter")
 		aura.Color = ColorSequence.new(Color3.fromRGB(255, 230, 140))
 		aura.LightEmission = 1
@@ -1835,17 +1838,35 @@ function TriviaParkourService.start()
 		aura.Speed = NumberRange.new(0.5, 1.5)
 		aura.Size = NumberSequence.new(0.8)
 		aura.Transparency = NumberSequence.new(0.4)
-		aura.Parent = coin
+		aura.Parent = hit
 		local ding = Instance.new("Sound")
 		ding.SoundId = "rbxassetid://135483737426662"
 		ding.Volume = 0.6
 		ding.RollOffMaxDistance = 70
-		ding.Parent = coin
+		ding.Parent = hit
+
+		-- Visual: the coin model (base rests at Y+1.6 so it floats centred ~Y+3.6, on the hitbox).
+		-- Falls back to a neon disc if the asset didn't load.
+		if coinTemplate then
+			Assets.place(folder, Config.Models.ChoicesCoin, CFrame.new(O.X + lane, Y + 1.6, zz), 4)
+		else
+			local disc = Instance.new("Part")
+			disc.Shape = Enum.PartType.Cylinder
+			disc.Size = Vector3.new(0.4, 3, 3)
+			disc.Anchored = true
+			disc.CanCollide = false
+			disc.CanQuery = false
+			disc.Material = Enum.Material.Neon
+			disc.Color = Color3.fromRGB(255, 205, 60)
+			disc.CFrame = center * CFrame.Angles(0, math.rad(90), 0)
+			disc.Parent = folder
+		end
+
 		local collected: { [Player]: boolean } = {}
-		coin.Touched:Connect(function(hit: BasePart)
-			local plr = playerFromHit(hit)
-			-- NOTE: no runState gate here -- the door triggers don't use one either, and in a solo run
-			-- runState may be unset; `collected` already caps it to once per player per coin.
+		hit.Touched:Connect(function(part: BasePart)
+			local plr = playerFromHit(part)
+			-- `collected` caps it to once per player per coin (no runState gate -- the door triggers
+			-- don't use one either, and runState can be unset in a solo run).
 			if not plr or collected[plr] then
 				return
 			end

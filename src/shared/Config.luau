@@ -191,6 +191,7 @@ local Config = {
 		ChoicesRoadTexture = 722192081, -- tiled onto the runway floor (Texture on the Top face)
 		ChoicesEndArch = 124133513894885, -- archway gate at the trophy finish
 		ChoicesConfetti = 89170077453589, -- a confetti ParticleEmitter (used at the finish)
+		ChoicesCoin = 2683656699, -- collectible coin model placed between gates
 		ChoicesFlagA = 117871245349165, -- waving flags (decor along the course)
 		ChoicesFlagB = 16152776816, -- tall flag banners (decor)
 		ChoicesFloodlight = 112866180058428, -- stadium floodlight tower (decor)
