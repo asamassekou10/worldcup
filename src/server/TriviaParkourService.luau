@@ -308,7 +308,8 @@ local function worldAABB(model: Model): (Vector3, Vector3)
 end
 
 local MASCOT_HEIGHT = 6.4 -- studs tall once worn (a touch bigger than the player)
-local MASCOT_FACE_DEG = 0 -- flip to 180 if the mascot ends up facing backwards
+local MASCOT_FACE_DEG = 90 -- the model's front sits 90° off; flip to -90 if it ends up facing the
+-- other side (or 180 if it faces backwards)
 local function applyCostume(player: Player, template: Model)
 	local char = player.Character
 	local hrp = char and char:FindFirstChild("HumanoidRootPart")
@@ -336,6 +337,21 @@ local function applyCostume(player: Player, template: Model)
 	local target = CFrame.lookAt((hrp :: BasePart).Position, (hrp :: BasePart).Position + flat)
 		* CFrame.Angles(0, math.rad(MASCOT_FACE_DEG), 0)
 	local fromUpright = CFrame.new(center) -- identity rotation at the asset's world center
+	-- Weld each part to the matching BODY LIMB by its vertical region (and side), not all to the
+	-- root -- so the lower parts ride the leg limbs and ANIMATE with the walk cycle. The real body is
+	-- hidden but still animating underneath, so the welded costume legs swing with it. Central /
+	-- ambiguous parts fall back to the root (static, which is fine).
+	local upperTorso = (
+		char:FindFirstChild("UpperTorso") or char:FindFirstChild("Torso")
+	) :: BasePart?
+	local headPart = char:FindFirstChild("Head") :: BasePart?
+	local leftLeg = (
+		char:FindFirstChild("LeftUpperLeg") or char:FindFirstChild("Left Leg")
+	) :: BasePart?
+	local rightLeg = (
+		char:FindFirstChild("RightUpperLeg") or char:FindFirstChild("Right Leg")
+	) :: BasePart?
+	local H = MASCOT_HEIGHT
 	for _, d in costume:GetDescendants() do
 		if d:IsA("BasePart") then
 			d.CFrame = target * fromUpright:ToObjectSpace(d.CFrame)
@@ -343,8 +359,18 @@ local function applyCostume(player: Player, template: Model)
 			d.CanCollide = false
 			d.CanQuery = false
 			d.Massless = true
+			-- where does this part sit, in the player's frame? (rel.Y = height, rel.X = side)
+			local rel = target:ToObjectSpace(CFrame.new(d.Position))
+			local weldTo: BasePart = hrp :: BasePart
+			if rel.Y < -H * 0.12 and math.abs(rel.X) > 0.35 then
+				weldTo = (if rel.X < 0 then leftLeg else rightLeg) or hrp :: BasePart
+			elseif rel.Y > H * 0.3 then
+				weldTo = headPart or upperTorso or hrp :: BasePart
+			elseif rel.Y > -H * 0.12 then
+				weldTo = upperTorso or hrp :: BasePart
+			end
 			local w = Instance.new("WeldConstraint")
-			w.Part0 = hrp :: BasePart
+			w.Part0 = weldTo
 			w.Part1 = d
 			w.Parent = d
 		end
@@ -1845,10 +1871,16 @@ function TriviaParkourService.start()
 		ding.RollOffMaxDistance = 70
 		ding.Parent = hit
 
-		-- Visual: the coin model (base rests at Y+1.6 so it floats centred ~Y+3.6, on the hitbox).
+		-- Visual: the coin model centred exactly on the hitbox (placeCentered, not place -- the model's
+		-- pivot is offset, which would otherwise float the visible coin away from where it's collected).
 		-- Falls back to a neon disc if the asset didn't load.
 		if coinTemplate then
-			Assets.place(folder, Config.Models.ChoicesCoin, CFrame.new(O.X + lane, Y + 1.6, zz), 4)
+			Assets.placeCentered(
+				folder,
+				Config.Models.ChoicesCoin,
+				Vector3.new(O.X + lane, Y + 3.6, zz),
+				4
+			)
 		else
 			local disc = Instance.new("Part")
 			disc.Shape = Enum.PartType.Cylinder

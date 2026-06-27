@@ -80,6 +80,71 @@ local function pivot(inst: Instance, cf: CFrame)
 	end
 end
 
+-- The TRUE world-space AABB centre (every part's 8 corners). Robust for toolbox models whose saved
+-- PIVOT is offset/tilted from the geometry -- GetPivot()/PivotTo would displace those.
+local function worldCentre(inst: Instance): Vector3
+	local minv = Vector3.new(math.huge, math.huge, math.huge)
+	local maxv = -minv
+	local function consume(p: BasePart)
+		local cf, h = p.CFrame, p.Size / 2
+		for _, sx in { -1, 1 } do
+			for _, sy in { -1, 1 } do
+				for _, sz in { -1, 1 } do
+					local c = cf * Vector3.new(sx * h.X, sy * h.Y, sz * h.Z)
+					minv, maxv = minv:Min(c), maxv:Max(c)
+				end
+			end
+		end
+	end
+	if inst:IsA("BasePart") then
+		consume(inst)
+	end
+	for _, d in inst:GetDescendants() do
+		if d:IsA("BasePart") then
+			consume(d)
+		end
+	end
+	return (minv + maxv) / 2
+end
+
+-- Like Assets.place, but positions the asset so its GEOMETRY CENTRE sits exactly at `centre`
+-- (rigid translate via the true world box, never PivotTo). Use this when the asset must line up with
+-- something precise -- e.g. a coin sitting on its collision hitbox.
+function Assets.placeCentered(
+	parent: Instance,
+	id: number,
+	centre: Vector3,
+	targetHeight: number?
+): Instance?
+	local template = Assets.template(id)
+	if not template then
+		return nil
+	end
+	local clone = template:Clone()
+	configure(clone)
+	if targetHeight then
+		local s = sizeOf(clone)
+		if s.Y > 0.1 then
+			local factor = targetHeight / s.Y
+			if clone:IsA("Model") then
+				pcall(function()
+					(clone :: Model):ScaleTo(factor)
+				end)
+			elseif clone:IsA("BasePart") then
+				local p = clone :: BasePart
+				p.Size = p.Size * factor
+			end
+		end
+	end
+	local delta = centre - worldCentre(clone)
+	local cur = if clone:IsA("Model")
+		then (clone :: Model):GetPivot()
+		else (clone :: BasePart).CFrame
+	pivot(clone, CFrame.new(delta) * cur)
+	clone.Parent = parent
+	return clone
+end
+
 -- Stamp a clone at `cf` (its BASE sits on cf), optionally scaled to `targetHeight`
 -- studs. Returns the clone (or nil if the asset isn't available).
 function Assets.place(parent: Instance, id: number, cf: CFrame, targetHeight: number?): Instance?

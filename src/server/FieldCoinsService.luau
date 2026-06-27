@@ -81,13 +81,9 @@ function FieldCoinsService.start()
 
 		local model: Instance? = nil
 		if coinTemplate then
-			-- base rests at pos.Y - COIN_H/2 -> the coin floats centred on `pos`
-			model = Assets.place(
-				folder,
-				Config.Models.ChoicesCoin,
-				CFrame.new(pos.X, pos.Y - COIN_H / 2, pos.Z),
-				COIN_H
-			)
+			-- centre the coin's geometry exactly on the hitbox (the model's saved pivot is offset, so
+			-- a plain PivotTo would float the visible coin away from where it's actually collected)
+			model = Assets.placeCentered(folder, Config.Models.ChoicesCoin, pos, COIN_H)
 		else
 			local disc = Instance.new("Part")
 			disc.Shape = Enum.PartType.Cylinder
@@ -136,6 +132,13 @@ function FieldCoinsService.start()
 		local activities = geo.center - geo.side * SIDE + geo.axis * t
 		buildCoin(Vector3.new(plaza.X, floorY + 2, plaza.Z))
 		buildCoin(Vector3.new(activities.X, floorY + 2, activities.Z))
+	end
+
+	-- A short trail extending the activities walkway toward the WYR portal (t≈78) -- doubles as
+	-- wayfinding so players "follow the coins" to the Would You Rather mode.
+	for _, t in { 56, 64, 72 } do
+		local p = geo.center - geo.side * SIDE + geo.axis * t
+		buildCoin(Vector3.new(p.X, floorY + 2, p.Z))
 	end
 end
 
