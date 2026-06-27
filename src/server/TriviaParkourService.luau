@@ -41,10 +41,10 @@ local LANE_W = 11 -- each running lane
 local DIVIDER_W = 2 -- the low center rail between the lanes
 local ROAD_W = LANE_W * 2 + DIVIDER_W
 local LANE_OFF = DIVIDER_W / 2 + LANE_W / 2 -- |X| of each lane's center
-local GATE_SPACING = 50
+local GATE_SPACING = 62 -- more runway between choices (splash clears before the next gate)
 local NUM_GATES = 22
 local TRIVIA_EVERY = 4 -- every Nth gate is a scored World Cup trivia gate
-local WALL_H = 11
+local WALL_H = 15 -- taller gate walls -> taller, more imposing choice doors
 local RUN_SPEED = 22 -- everyone runs quick (it's a runner)
 
 -- ----- rewards / scoring -----

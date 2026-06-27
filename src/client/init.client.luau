@@ -507,19 +507,19 @@ do
 
 	local panel = Instance.new("Frame")
 	panel.AnchorPoint = Vector2.new(0, 0.5)
-	panel.Position = UDim2.new(0, 24, 0.5, 0)
-	panel.Size = UDim2.fromOffset(330, 150)
+	panel.Position = UDim2.new(0, 20, 0.5, 0)
+	panel.Size = UDim2.fromOffset(248, 116)
 	panel.BackgroundColor3 = Color3.fromRGB(12, 16, 28)
 	panel.BackgroundTransparency = 0.15
 	panel.BorderSizePixel = 0
 	panel.Parent = gui
 	local corner = Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(0, 14)
+	corner.CornerRadius = UDim.new(0, 12)
 	corner.Parent = panel
 
 	local header = Instance.new("TextLabel")
-	header.Size = UDim2.new(1, -20, 0, 26)
-	header.Position = UDim2.fromOffset(10, 8)
+	header.Size = UDim2.new(1, -16, 0, 20)
+	header.Position = UDim2.fromOffset(10, 7)
 	header.BackgroundTransparency = 1
 	header.Font = Enum.Font.GothamBold
 	header.TextScaled = true
@@ -528,22 +528,10 @@ do
 	header.Text = ""
 	header.Parent = panel
 
-	local progress = Instance.new("TextLabel")
-	progress.AnchorPoint = Vector2.new(1, 0)
-	progress.Size = UDim2.fromOffset(96, 22)
-	progress.Position = UDim2.new(1, -10, 0, 10)
-	progress.BackgroundTransparency = 1
-	progress.Font = Enum.Font.GothamBold
-	progress.TextScaled = true
-	progress.TextXAlignment = Enum.TextXAlignment.Right
-	progress.TextColor3 = Color3.fromRGB(255, 220, 120)
-	progress.Text = ""
-	progress.Parent = panel
-
 	local function bar(y: number): (TextLabel, Frame)
 		local holder = Instance.new("Frame")
-		holder.Size = UDim2.new(1, -20, 0, 44)
-		holder.Position = UDim2.fromOffset(10, y)
+		holder.Size = UDim2.new(1, -16, 0, 36)
+		holder.Position = UDim2.fromOffset(8, y)
 		holder.BackgroundColor3 = Color3.fromRGB(28, 34, 50)
 		holder.BorderSizePixel = 0
 		holder.Parent = panel
@@ -572,8 +560,8 @@ do
 		txt.Parent = holder
 		return txt, fill
 	end
-	local txtA, fillA = bar(40)
-	local txtB, fillB = bar(92)
+	local txtA, fillA = bar(32)
+	local txtB, fillB = bar(72)
 
 	local token = 0
 	Net.getEvent(Net.Events.ChoiceResult).OnClientEvent:Connect(function(payload: unknown)
@@ -644,21 +632,31 @@ do
 		txtB.TextColor3 = if r.picked == "b"
 			then Color3.fromRGB(255, 240, 150)
 			else Color3.fromRGB(255, 255, 255)
-		progress.Text = if r.index and r.total
-			then string.format("Gate %d/%d", r.index, r.total)
-			else ""
 		gui.Enabled = true
 		-- slide in from off the left edge for a bit of juice
-		panel.Position = UDim2.new(0, -360, 0.5, 0)
+		panel.Position = UDim2.new(0, -300, 0.5, 0)
 		TweenService
-			:Create(panel, TweenInfo.new(0.32, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-				Position = UDim2.new(0, 24, 0.5, 0),
+			:Create(panel, TweenInfo.new(0.28, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+				Position = UDim2.new(0, 20, 0.5, 0),
 			})
 			:Play()
-		task.delay(3.2, function()
-			if token == mine then
-				gui.Enabled = false
+		-- hold briefly, then slide back out (kept shorter than the gate interval so it never
+		-- lingers into the next choice)
+		task.delay(1.5, function()
+			if token ~= mine then
+				return
 			end
+			local out = TweenService:Create(
+				panel,
+				TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
+				{ Position = UDim2.new(0, -300, 0.5, 0) }
+			)
+			out:Play()
+			out.Completed:Connect(function()
+				if token == mine then
+					gui.Enabled = false
+				end
+			end)
 		end)
 	end)
 end
