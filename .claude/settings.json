@@ -194,7 +194,9 @@
       "Bash(~/.rokit/bin/stylua src/client/init.client.luau src/server/HubService.luau src/server/DataService.luau src/server/CardService.luau src/server/init.server.luau src/shared/CardBank.luau src/shared/Net.luau)",
       "Bash(~/.rokit/bin/selene src/client/init.client.luau src/server/HubService.luau src/server/DataService.luau src/server/CardService.luau src/server/init.server.luau src/shared/CardBank.luau)",
       "Bash(~/.rokit/bin/stylua src/client/init.client.luau src/server/DataService.luau src/server/EventService.luau src/server/init.server.luau src/shared/LiveEvents.luau src/shared/Net.luau)",
-      "Bash(~/.rokit/bin/selene src/client/init.client.luau src/server/DataService.luau src/server/EventService.luau src/server/init.server.luau src/shared/LiveEvents.luau)"
+      "Bash(~/.rokit/bin/selene src/client/init.client.luau src/server/DataService.luau src/server/EventService.luau src/server/init.server.luau src/shared/LiveEvents.luau)",
+      "Bash(~/.rokit/bin/stylua src/client/init.client.luau src/server/DataService.luau src/server/StoreService.luau src/server/init.server.luau src/shared/DailyDeals.luau src/shared/Net.luau)",
+      "Bash(~/.rokit/bin/selene src/client/init.client.luau src/server/DataService.luau src/server/StoreService.luau src/server/init.server.luau src/shared/DailyDeals.luau)"
     ]
   }
 }

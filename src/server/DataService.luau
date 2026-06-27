@@ -17,6 +17,7 @@ local WorldCup = require(Shared:WaitForChild("WorldCup"))
 local SeasonPass = require(Shared:WaitForChild("SeasonPass"))
 local CardBank = require(Shared:WaitForChild("CardBank"))
 local LiveEvents = require(Shared:WaitForChild("LiveEvents"))
+local DailyDeals = require(Shared:WaitForChild("DailyDeals"))
 
 local ProfileStore = require(script.Parent:WaitForChild("ProfileStore"))
 local BadgeService = require(script.Parent:WaitForChild("BadgeService"))
@@ -60,6 +61,8 @@ local PROFILE_TEMPLATE: Types.ProfileData = {
 	CardsOwned = {}, -- collectible cards: id -> count
 	CardPacks = 0, -- unopened card packs
 	CardSetClaimed = false, -- one-time "completed the set" bonus paid?
+	StoreDay = 0, -- day index the StoreBought set belongs to (resets the list each UTC day)
+	StoreBought = {}, -- set of daily-deal ids already purchased today
 }
 
 -- Systems that need a player's profile (e.g. cosmetics applying the equipped
@@ -547,8 +550,12 @@ function DataService.grantReward(player: Player, coins: number, xp: number)
 	local beforeLevel = Progression.levelFromXp(data.XP)
 	-- live-event multipliers (Double Coins / Double XP / weekend) apply to all earned rewards
 	local ev = LiveEvents.current()
+	local xpMult = ev.xpMult
+	if data.XpBoostExpiry > os.time() then
+		xpMult *= 2 -- active 2× XP boost (e.g. from a Daily Deal / treat)
+	end
 	data.Coins += math.floor(math.max(coins, 0) * ev.coinMult)
-	data.XP += math.floor(math.max(xp, 0) * ev.xpMult)
+	data.XP += math.floor(math.max(xp, 0) * xpMult)
 	local afterLevel = Progression.levelFromXp(data.XP)
 	if afterLevel > beforeLevel then
 		notify(player, string.format("⬆️ Level %d!", afterLevel))
@@ -681,6 +688,62 @@ function DataService.grantPack(player: Player, n: number)
 	end
 	profile.Data.CardPacks += n + (n > 0 and LiveEvents.current().packBonus or 0) -- Pack Frenzy bonus
 	pushToClient(player)
+end
+
+-- Daily Deal store: roll the StoreBought set over to today if the day changed (so each day's
+-- line-up starts fresh), then return the snapshot the client store panel needs.
+local function refreshStore(data: any)
+	local today = Progression.dayIndex()
+	if data.StoreDay ~= today then
+		data.StoreDay = today
+		data.StoreBought = {}
+	end
+end
+
+function DataService.storeInfo(player: Player): { [string]: any }?
+	local profile = profiles[player]
+	if not profile or not profile:IsActive() then
+		return nil
+	end
+	local data = profile.Data
+	refreshStore(data)
+	return {
+		coins = data.Coins,
+		bought = data.StoreBought,
+		resetsAt = DailyDeals.resetsAt(),
+		deals = DailyDeals.dealsFor(),
+	}
+end
+
+-- Buy one of today's featured deals. Validates the deal is featured today, isn't already bought,
+-- and the player can afford it, then applies the effect. Returns (ok, message).
+function DataService.buyDeal(player: Player, id: string): (boolean, string)
+	local profile = profiles[player]
+	if not profile or not profile:IsActive() then
+		return false, "Not ready"
+	end
+	local data = profile.Data
+	refreshStore(data)
+	local deal = DailyDeals.todaysDeal(id)
+	if not deal then
+		return false, "That deal isn't available today"
+	end
+	if data.StoreBought[id] then
+		return false, "Already claimed today"
+	end
+	if data.Coins < deal.price then
+		return false, "Not enough coins"
+	end
+	data.Coins -= deal.price
+	data.StoreBought[id] = true
+	if deal.kind == "pack" then
+		DataService.grantPack(player, deal.amount) -- pushes to client
+	elseif deal.kind == "boost" then
+		data.XpBoostExpiry = math.max(data.XpBoostExpiry, os.time()) + deal.amount
+	end
+	updateLeaderstats(player)
+	pushToClient(player)
+	return true, string.format("%s %s purchased!", deal.emoji, deal.label)
 end
 
 -- Snapshot for the client card collection panel.

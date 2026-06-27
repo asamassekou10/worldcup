@@ -131,6 +131,10 @@ Net.Events = {
 
 	-- Live events: the current always-on event (Double Coins / XP / Pack Frenzy / Weekend).
 	LiveEvent = "LiveEvent", -- server -> client: { key, label, emoji, coinMult, xpMult, endsAt }
+
+	-- Daily Deals store: a rotating coin store (FOMO -- "today only").
+	StoreState = "StoreState", -- server -> client: { coins, bought, resetsAt, deals }
+	StoreBuy = "StoreBuy", -- client -> server: { id: string }
 }
 
 local folder: Folder?

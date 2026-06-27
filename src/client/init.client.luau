@@ -2357,6 +2357,265 @@ do
 	end)
 end
 
+-- ===== Daily Deals store: a 🛒 DEALS button opens a rotating coin store (3 deals, resets daily).
+-- A live "resets in Xh" countdown drives the FOMO; deals already bought today show "CLAIMED". =====
+do
+	type Deal = {
+		id: string,
+		label: string,
+		emoji: string,
+		desc: string,
+		price: number,
+		tag: string?,
+	}
+	local pg = player:WaitForChild("PlayerGui")
+	local myCoins = 0
+	local resetsAt = 0
+	local deals: { Deal } = {}
+	local bought: { [string]: boolean } = {}
+
+	local function rounded(g: GuiObject, r: number)
+		local c = Instance.new("UICorner")
+		c.CornerRadius = UDim.new(0, r)
+		c.Parent = g
+	end
+
+	local gui = Instance.new("ScreenGui")
+	gui.Name = "DailyDeals"
+	gui.ResetOnSpawn = false
+	gui.IgnoreGuiInset = true
+	gui.DisplayOrder = 24
+	gui.Parent = pg
+
+	local btn = Instance.new("TextButton")
+	btn.AnchorPoint = Vector2.new(1, 0)
+	btn.Position = UDim2.new(1, -12, 0, 254)
+	btn.Size = UDim2.fromOffset(140, 42)
+	btn.BackgroundColor3 = Color3.fromRGB(22, 24, 34)
+	btn.BackgroundTransparency = 0.1
+	btn.Font = Enum.Font.GothamBlack
+	btn.TextScaled = true
+	btn.TextColor3 = Color3.fromRGB(140, 230, 170)
+	btn.Text = "🛒 DEALS"
+	btn.Parent = gui
+	rounded(btn, 10)
+
+	local backdrop = Instance.new("TextButton")
+	backdrop.Size = UDim2.fromScale(1, 1)
+	backdrop.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+	backdrop.BackgroundTransparency = 0.45
+	backdrop.Text = ""
+	backdrop.AutoButtonColor = false
+	backdrop.Visible = false
+	backdrop.Parent = gui
+
+	local panel = Instance.new("Frame")
+	panel.AnchorPoint = Vector2.new(0.5, 0.5)
+	panel.Position = UDim2.fromScale(0.5, 0.5)
+	panel.Size = UDim2.fromOffset(420, 470)
+	panel.BackgroundColor3 = Color3.fromRGB(16, 20, 34)
+	panel.BorderSizePixel = 0
+	panel.Parent = backdrop
+	rounded(panel, 18)
+	local ps = Instance.new("UIStroke")
+	ps.Color = Color3.fromRGB(140, 230, 170)
+	ps.Thickness = 3
+	ps.Parent = panel
+
+	local titleLbl = Instance.new("TextLabel")
+	titleLbl.Size = UDim2.new(1, -28, 0, 30)
+	titleLbl.Position = UDim2.fromOffset(14, 12)
+	titleLbl.BackgroundTransparency = 1
+	titleLbl.Font = Enum.Font.GothamBlack
+	titleLbl.TextScaled = true
+	titleLbl.TextColor3 = Color3.fromRGB(140, 230, 170)
+	titleLbl.Text = "🛒 DAILY DEALS"
+	titleLbl.Parent = panel
+
+	local timerLbl = Instance.new("TextLabel")
+	timerLbl.Size = UDim2.new(1, -28, 0, 20)
+	timerLbl.Position = UDim2.fromOffset(14, 44)
+	timerLbl.BackgroundTransparency = 1
+	timerLbl.Font = Enum.Font.GothamBold
+	timerLbl.TextScaled = true
+	timerLbl.TextXAlignment = Enum.TextXAlignment.Left
+	timerLbl.TextColor3 = Color3.fromRGB(255, 200, 90)
+	timerLbl.Text = ""
+	timerLbl.Parent = panel
+
+	local closeBtn = Instance.new("TextButton")
+	closeBtn.AnchorPoint = Vector2.new(1, 0)
+	closeBtn.Position = UDim2.new(1, -10, 0, 10)
+	closeBtn.Size = UDim2.fromOffset(34, 34)
+	closeBtn.BackgroundColor3 = Color3.fromRGB(40, 44, 60)
+	closeBtn.Font = Enum.Font.GothamBlack
+	closeBtn.TextScaled = true
+	closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+	closeBtn.Text = "✕"
+	closeBtn.Parent = panel
+	rounded(closeBtn, 8)
+
+	local list = Instance.new("Frame")
+	list.Position = UDim2.fromOffset(14, 76)
+	list.Size = UDim2.new(1, -28, 1, -90)
+	list.BackgroundTransparency = 1
+	list.Parent = panel
+	local vlist = Instance.new("UIListLayout")
+	vlist.Padding = UDim.new(0, 12)
+	vlist.SortOrder = Enum.SortOrder.LayoutOrder
+	vlist.Parent = list
+
+	-- One row per deal. Rebuilt whenever a fresh StoreState arrives.
+	local function render()
+		for _, c in list:GetChildren() do
+			if c:IsA("Frame") then
+				c:Destroy()
+			end
+		end
+		for i, deal in deals do
+			local row = Instance.new("Frame")
+			row.Size = UDim2.new(1, 0, 0, 118)
+			row.BackgroundColor3 = Color3.fromRGB(26, 30, 44)
+			row.LayoutOrder = i
+			row.Parent = list
+			rounded(row, 12)
+
+			local emoji = Instance.new("TextLabel")
+			emoji.Position = UDim2.fromOffset(12, 0)
+			emoji.Size = UDim2.fromOffset(64, 118)
+			emoji.BackgroundTransparency = 1
+			emoji.Font = Enum.Font.GothamBlack
+			emoji.TextScaled = true
+			emoji.Text = deal.emoji
+			emoji.Parent = row
+
+			local name = Instance.new("TextLabel")
+			name.Position = UDim2.fromOffset(84, 14)
+			name.Size = UDim2.new(1, -200, 0, 26)
+			name.BackgroundTransparency = 1
+			name.Font = Enum.Font.GothamBlack
+			name.TextScaled = true
+			name.TextXAlignment = Enum.TextXAlignment.Left
+			name.TextColor3 = Color3.fromRGB(255, 255, 255)
+			name.Text = deal.label
+			name.Parent = row
+
+			local desc = Instance.new("TextLabel")
+			desc.Position = UDim2.fromOffset(84, 44)
+			desc.Size = UDim2.new(1, -200, 0, 22)
+			desc.BackgroundTransparency = 1
+			desc.Font = Enum.Font.GothamMedium
+			desc.TextScaled = true
+			desc.TextXAlignment = Enum.TextXAlignment.Left
+			desc.TextColor3 = Color3.fromRGB(180, 188, 205)
+			desc.Text = deal.desc
+			desc.Parent = row
+
+			if deal.tag then
+				local tag = Instance.new("TextLabel")
+				tag.AnchorPoint = Vector2.new(1, 0)
+				tag.Position = UDim2.new(1, -12, 0, 12)
+				tag.Size = UDim2.fromOffset(96, 22)
+				tag.BackgroundColor3 = Color3.fromRGB(255, 90, 120)
+				tag.Font = Enum.Font.GothamBlack
+				tag.TextScaled = true
+				tag.TextColor3 = Color3.fromRGB(255, 255, 255)
+				tag.Text = deal.tag
+				tag.Parent = row
+				rounded(tag, 6)
+			end
+
+			local buy = Instance.new("TextButton")
+			buy.AnchorPoint = Vector2.new(1, 1)
+			buy.Position = UDim2.new(1, -12, 1, -12)
+			buy.Size = UDim2.fromOffset(150, 40)
+			buy.Font = Enum.Font.GothamBlack
+			buy.TextScaled = true
+			buy.Parent = row
+			rounded(buy, 10)
+
+			local function paint()
+				if bought[deal.id] then
+					buy.BackgroundColor3 = Color3.fromRGB(40, 44, 60)
+					buy.TextColor3 = Color3.fromRGB(150, 158, 170)
+					buy.Text = "✓ CLAIMED"
+					buy.AutoButtonColor = false
+				elseif myCoins < deal.price then
+					buy.BackgroundColor3 = Color3.fromRGB(54, 40, 44)
+					buy.TextColor3 = Color3.fromRGB(255, 150, 150)
+					buy.Text = string.format("🪙 %d", deal.price)
+					buy.AutoButtonColor = false
+				else
+					buy.BackgroundColor3 = Color3.fromRGB(60, 170, 90)
+					buy.TextColor3 = Color3.fromRGB(255, 255, 255)
+					buy.Text = string.format("🪙 %d", deal.price)
+					buy.AutoButtonColor = true
+				end
+			end
+			paint()
+
+			buy.Activated:Connect(function()
+				if bought[deal.id] or myCoins < deal.price then
+					return
+				end
+				buy.Text = "..."
+				buy.AutoButtonColor = false
+				Net.getEvent(Net.Events.StoreBuy):FireServer({ id = deal.id })
+			end)
+		end
+	end
+
+	local function fmt(sec: number): string
+		sec = math.max(0, math.floor(sec))
+		local h = math.floor(sec / 3600)
+		local m = math.floor((sec % 3600) / 60)
+		return string.format("⏳ New deals in %dh %02dm", h, m)
+	end
+
+	Net.getEvent(Net.Events.StoreState).OnClientEvent:Connect(function(payload: unknown)
+		local info = payload :: {
+			coins: number,
+			bought: { [string]: boolean },
+			resetsAt: number,
+			deals: { Deal },
+		}
+		myCoins = info.coins or 0
+		bought = info.bought or {}
+		resetsAt = info.resetsAt or 0
+		deals = info.deals or {}
+		render()
+	end)
+
+	task.spawn(function()
+		while true do
+			if resetsAt > 0 then
+				timerLbl.Text = fmt(resetsAt - os.time())
+			end
+			task.wait(20)
+		end
+	end)
+
+	btn.Activated:Connect(function()
+		backdrop.Visible = true
+	end)
+	backdrop.Activated:Connect(function()
+		backdrop.Visible = false
+	end)
+	closeBtn.Activated:Connect(function()
+		backdrop.Visible = false
+	end)
+
+	Net.getEvent(Net.Events.ChoicesMode).OnClientEvent:Connect(function(payload: unknown)
+		gui.Enabled = not (payload :: { active: boolean }).active
+	end)
+	Net.getEvent(Net.Events.RoundStart).OnClientEvent:Connect(function()
+		gui.Enabled = false
+	end)
+	Net.getEvent(Net.Events.MatchOver).OnClientEvent:Connect(function()
+		gui.Enabled = true
+	end)
+end
+
 -- ===== Growth nudge: after a win / Choices finish, a small reminder to Like + Favorite (boosts
 -- Roblox discovery) and a one-tap Invite Friends button (social/viral loop). No reward is tied to
 -- liking (Roblox policy) -- it's a pure reminder. Self-throttled so it never spams. =====
