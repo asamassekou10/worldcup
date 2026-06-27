@@ -2408,8 +2408,9 @@ do
 		t.Parent = panel
 		return t
 	end
-	local titleLbl = mk(14, 30, Enum.Font.GothamBlack, Color3.fromRGB(255, 235, 150), true)
-	titleLbl.Text = "🏟️ MY FOOTBALL CLUB"
+	local titleLbl = mk(14, 28, Enum.Font.GothamBlack, Color3.fromRGB(255, 235, 150), true)
+	titleLbl.Size = UDim2.new(1, -104, 0, 28)
+	titleLbl.Text = "🏟️ FOOTBALL CLUB"
 	local levelLbl = mk(50, 24, Enum.Font.GothamBold, Color3.fromRGB(210, 218, 230), true)
 	local pendingLbl = mk(86, 56, Enum.Font.GothamBlack, Color3.fromRGB(120, 230, 150), true)
 	local capLbl = mk(146, 20, Enum.Font.Gotham, Color3.fromRGB(160, 170, 190), true)
@@ -2449,10 +2450,10 @@ do
 	end
 	local function refresh()
 		levelLbl.Text =
-			string.format("Level %d  ·  Earning %d 🪙/hr", info.level, info.ratePerHr)
+			string.format("Level %d  ·  Earning %d 💰/hr", info.level, info.ratePerHr)
 		pendingLbl.Text = "💰 " .. tostring(math.floor(livePending()))
 		capLbl.Text = string.format("banked at %d max — claim before it fills!", info.cap)
-		upgradeBtn.Text = string.format("⬆️ Upgrade earn rate — %d 🪙", info.upgradeCost)
+		upgradeBtn.Text = string.format("⬆️ Upgrade earn rate — %d 💰", info.upgradeCost)
 	end
 
 	Net.getEvent(Net.Events.ClubState).OnClientEvent:Connect(function(payload: unknown)
@@ -2551,11 +2552,12 @@ do
 	dressPanel(panel)
 
 	local titleLbl = Instance.new("TextLabel")
-	titleLbl.Size = UDim2.new(1, -28, 0, 30)
-	titleLbl.Position = UDim2.fromOffset(14, 12)
+	titleLbl.Size = UDim2.new(1, -104, 0, 26)
+	titleLbl.Position = UDim2.fromOffset(16, 14)
 	titleLbl.BackgroundTransparency = 1
 	titleLbl.Font = Enum.Font.GothamBlack
 	titleLbl.TextScaled = true
+	titleLbl.TextXAlignment = Enum.TextXAlignment.Left
 	titleLbl.TextColor3 = Color3.fromRGB(255, 235, 150)
 	titleLbl.Text = "🃏 MY CARDS"
 	titleLbl.Parent = panel
@@ -2838,11 +2840,12 @@ do
 	dressPanel(panel)
 
 	local titleLbl = Instance.new("TextLabel")
-	titleLbl.Size = UDim2.new(1, -28, 0, 30)
-	titleLbl.Position = UDim2.fromOffset(14, 12)
+	titleLbl.Size = UDim2.new(1, -104, 0, 26)
+	titleLbl.Position = UDim2.fromOffset(16, 14)
 	titleLbl.BackgroundTransparency = 1
 	titleLbl.Font = Enum.Font.GothamBlack
 	titleLbl.TextScaled = true
+	titleLbl.TextXAlignment = Enum.TextXAlignment.Left
 	titleLbl.TextColor3 = Color3.fromRGB(140, 230, 170)
 	titleLbl.Text = "🛒 DAILY DEALS"
 	titleLbl.Parent = panel
@@ -2951,12 +2954,12 @@ do
 				elseif myCoins < deal.price then
 					buy.BackgroundColor3 = Color3.fromRGB(54, 40, 44)
 					buy.TextColor3 = Color3.fromRGB(255, 150, 150)
-					buy.Text = string.format("🪙 %d", deal.price)
+					buy.Text = string.format("💰 %d", deal.price)
 					buy.AutoButtonColor = false
 				else
 					buy.BackgroundColor3 = Color3.fromRGB(60, 170, 90)
 					buy.TextColor3 = Color3.fromRGB(255, 255, 255)
-					buy.Text = string.format("🪙 %d", deal.price)
+					buy.Text = string.format("💰 %d", deal.price)
 					buy.AutoButtonColor = true
 				end
 			end
@@ -3076,13 +3079,14 @@ do
 	dressPanel(panel)
 
 	local titleLbl = Instance.new("TextLabel")
-	titleLbl.Size = UDim2.new(1, -28, 0, 28)
-	titleLbl.Position = UDim2.fromOffset(14, 12)
+	titleLbl.Size = UDim2.new(1, -104, 0, 26)
+	titleLbl.Position = UDim2.fromOffset(16, 14)
 	titleLbl.BackgroundTransparency = 1
 	titleLbl.Font = Enum.Font.GothamBlack
 	titleLbl.TextScaled = true
+	titleLbl.TextXAlignment = Enum.TextXAlignment.Left
 	titleLbl.TextColor3 = Color3.fromRGB(255, 215, 120)
-	titleLbl.Text = "🏆 WEEKLY TOURNAMENT"
+	titleLbl.Text = "🏆 TOURNAMENT"
 	titleLbl.Parent = panel
 
 	local timerLbl = Instance.new("TextLabel")
@@ -3197,7 +3201,7 @@ do
 				prizeLbl.TextScaled = true
 				prizeLbl.TextColor3 = Color3.fromRGB(140, 230, 170)
 				local packTxt = if prize.packs > 0 then "+" .. prize.packs .. "🃏" else ""
-				prizeLbl.Text = string.format("🪙%d %s", prize.coins, packTxt)
+				prizeLbl.Text = string.format("💰%d %s", prize.coins, packTxt)
 				prizeLbl.Parent = frame
 				rounded(prizeLbl, 6)
 			end
@@ -3808,7 +3812,7 @@ do
 		if info.done then
 			fill.BackgroundColor3 = Color3.fromRGB(90, 200, 120)
 			barTxt.Text =
-				string.format("✓ COMPLETE  ·  +%d 🪙  +%d 🃏", info.coins, info.packs)
+				string.format("✓ COMPLETE  ·  +%d 💰  +%d 🃏", info.coins, info.packs)
 			-- auto-hide shortly after completion
 			hideToken += 1
 			local mine = hideToken
@@ -3819,7 +3823,7 @@ do
 			end)
 		else
 			barTxt.Text = string.format(
-				"%d / %d  ·  +%d 🪙 +%d 🃏",
+				"%d / %d  ·  +%d 💰 +%d 🃏",
 				info.progress,
 				info.target,
 				info.coins,
