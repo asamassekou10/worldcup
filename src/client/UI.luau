@@ -113,6 +113,7 @@ export type Hud = {
 	openShop: () -> (),
 	openRanks: () -> (),
 	openStore: () -> (),
+	openChallenge1v1: () -> (),
 	showChallengeInvite: (fromUserId: number, fromName: string) -> (),
 	getInput: () -> { x: number, y: number, power: number, curve: number },
 	setProfile: (data: Types.ProfileData) -> (),
@@ -631,6 +632,12 @@ function UI.create(player: Player): Hud
 	local boardButton = menuButton("🏆 RANKS", 0.265)
 	local storeButton = menuButton("💎 STORE", 0.5)
 	local challengeButton = menuButton("⚔️ 1V1", 0.735)
+	-- These four now live inside the unified MENU (init.client) instead of a permanent bottom bar;
+	-- they stay created+wired (the MENU calls their exposed open methods) but are hidden here.
+	shopButton.Visible = false
+	boardButton.Visible = false
+	storeButton.Visible = false
+	challengeButton.Visible = false
 
 	findButton.Activated:Connect(function()
 		Sound.play("Click")
@@ -1494,6 +1501,7 @@ function UI.create(player: Player): Hud
 		showPanel(shopPanel)
 		refreshShop()
 	end
+	self.openShop = openShop -- exposed so the unified MENU (init.client) can open it
 	shopButton.Activated:Connect(openShop)
 	nationChip.Activated:Connect(function()
 		Sound.play("Click")
@@ -1651,11 +1659,12 @@ function UI.create(player: Player): Hud
 		fillColumn(coinsColumn, latestBoard.Coins)
 	end
 
-	boardButton.Activated:Connect(function()
+	self.openRanks = function() -- exposed for the unified MENU
 		lobby.Visible = false
 		showPanel(boardPanel)
 		renderBoard()
-	end)
+	end
+	boardButton.Activated:Connect(self.openRanks)
 	closeBoard.Activated:Connect(function()
 		boardPanel.Visible = false
 		lobby.Visible = true
@@ -1850,11 +1859,12 @@ function UI.create(player: Player): Hud
 		end
 	end
 
-	challengeButton.Activated:Connect(function()
+	self.openChallenge1v1 = function() -- exposed for the unified MENU
 		lobby.Visible = false
 		showPanel(challengePanel)
 		refreshChallengeList()
-	end)
+	end
+	challengeButton.Activated:Connect(self.openChallenge1v1)
 	closeChallenge.Activated:Connect(function()
 		challengePanel.Visible = false
 		lobby.Visible = true
@@ -2299,11 +2309,12 @@ function UI.create(player: Player): Hud
 		end
 	end
 
-	storeButton.Activated:Connect(function()
+	self.openStore = function() -- exposed for the unified MENU
 		lobby.Visible = false
 		showPanel(storePanel)
 		refreshStore()
-	end)
+	end
+	storeButton.Activated:Connect(self.openStore)
 	closeStore.Activated:Connect(function()
 		storePanel.Visible = false
 		lobby.Visible = true

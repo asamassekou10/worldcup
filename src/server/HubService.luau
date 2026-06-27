@@ -138,57 +138,6 @@ local function build()
 		return MapLayout.activity(slot) or CFrame.new(goalXZ)
 	end
 
-	-- WELCOME DIRECTORY by spawn: orients brand-new players (the "I don't know what to do" fix).
-	do
-		local base = ground(plazaCF("spawn").Position) + right * 12
-		local post = part(
-			folder,
-			Vector3.new(1, 12, 1),
-			CFrame.new(base + Vector3.new(0, 6, 0)),
-			Color3.fromRGB(38, 42, 58),
-			Enum.Material.SmoothPlastic
-		)
-		post.CanCollide = true
-		local top = part(
-			folder,
-			Vector3.new(0.5, 0.5, 0.5),
-			CFrame.new(base + Vector3.new(0, 13, 0)),
-			Color3.new(0, 0, 0),
-			Enum.Material.SmoothPlastic
-		)
-		top.Transparency = 1
-		local bb = Instance.new("BillboardGui")
-		bb.Size = UDim2.fromOffset(360, 200)
-		bb.MaxDistance = 100
-		bb.Adornee = top
-		bb.Parent = top
-		local frame = Instance.new("Frame")
-		frame.Size = UDim2.fromScale(1, 1)
-		frame.BackgroundColor3 = Color3.fromRGB(14, 18, 30)
-		frame.BackgroundTransparency = 0.15
-		frame.BorderSizePixel = 0
-		frame.Parent = bb
-		local fc = Instance.new("UICorner")
-		fc.CornerRadius = UDim.new(0, 12)
-		fc.Parent = frame
-		local fs = Instance.new("UIStroke")
-		fs.Color = Color3.fromRGB(255, 200, 70)
-		fs.Thickness = 2
-		fs.Parent = frame
-		local txt = Instance.new("TextLabel")
-		txt.Size = UDim2.fromScale(0.92, 0.86)
-		txt.Position = UDim2.fromScale(0.04, 0.07)
-		txt.BackgroundTransparency = 1
-		txt.Font = Enum.Font.GothamBold
-		txt.TextScaled = true
-		txt.TextWrapped = true
-		txt.TextColor3 = Color3.fromRGB(255, 255, 255)
-		txt.TextXAlignment = Enum.TextXAlignment.Left
-		txt.Text =
-			"👋 WELCOME!\n\n🎮 Tap PLAY (top of screen) to jump to any mode:\n🤔 Would You Rather · 🎯 Free Kicks\n🧤 Gauntlet · 🧠 Trivia · 🏋️ Training\n\n🏟️ Grow your CLUB for daily coins!"
-		txt.Parent = frame
-	end
-
 	-- ---- a stand at a plaza anchor: a mesh model if it loads, else a built counter ----
 	local function stall(
 		anchor: CFrame,
