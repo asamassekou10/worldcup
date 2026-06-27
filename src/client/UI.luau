@@ -1593,117 +1593,161 @@ function UI.create(player: Player): Hud
 	closeBoard.Parent = boardPanel
 	decoratePanel(boardPanel, boardTitle, closeBoard)
 
-	-- Build one titled column (a header + a scrolling list) and return its list.
-	local function buildColumn(heading: string, xScale: number, width: number): ScrollingFrame
-		local header = Instance.new("TextLabel")
-		header.Size = UDim2.fromScale(width, 0.06)
-		header.Position = UDim2.fromScale(xScale, 0.16)
-		header.BackgroundTransparency = 1
-		header.Font = Enum.Font.GothamBold
-		header.TextScaled = true
-		header.TextColor3 = Color3.fromRGB(240, 200, 40)
-		header.Text = heading
-		header.Parent = boardPanel
+	-- Tabbed standings: 4 tabs + ONE full-width list (was 4 cramped side-by-side columns). Each entry
+	-- now gets the whole panel width. Wrapped in a do-block (UI.create is near the 200-local cap).
+	local renderBoard: () -> ()
+	do
+		local TABS = {
+			{
+				label = "🌍 World Cup",
+				get = function()
+					return latestBoard.Nations
+				end,
+			},
+			{
+				label = "👟 Golden Boot",
+				get = function()
+					return latestBoard.Scorers
+				end,
+			},
+			{
+				label = "🏆 Most Wins",
+				get = function()
+					return latestBoard.Wins
+				end,
+			},
+			{
+				label = "💰 Most Coins",
+				get = function()
+					return latestBoard.Coins
+				end,
+			},
+		}
+		local activeTab = 1
+		local BOARD_ACCENT = Color3.fromRGB(240, 200, 40)
 
-		local column = Instance.new("ScrollingFrame")
-		column.Size = UDim2.fromScale(width, 0.72)
-		column.Position = UDim2.fromScale(xScale, 0.23)
-		column.BackgroundTransparency = 1
-		column.BorderSizePixel = 0
-		column.ScrollBarThickness = 6
-		column.CanvasSize = UDim2.new()
-		column.AutomaticCanvasSize = Enum.AutomaticSize.Y
-		column.Parent = boardPanel
+		-- the single wide list
+		local list = Instance.new("ScrollingFrame")
+		list.Size = UDim2.fromScale(0.9, 0.6)
+		list.Position = UDim2.fromScale(0.05, 0.3)
+		list.BackgroundTransparency = 1
+		list.BorderSizePixel = 0
+		list.ScrollBarThickness = 6
+		list.ScrollBarImageColor3 = Color3.fromRGB(90, 98, 124)
+		list.CanvasSize = UDim2.new()
+		list.AutomaticCanvasSize = Enum.AutomaticSize.Y
+		list.Parent = boardPanel
+		local boardListLayout = Instance.new("UIListLayout")
+		boardListLayout.Padding = UDim.new(0, 8)
+		boardListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+		boardListLayout.Parent = list
 
-		local colLayout = Instance.new("UIListLayout")
-		colLayout.Padding = UDim.new(0, 6)
-		colLayout.SortOrder = Enum.SortOrder.LayoutOrder
-		colLayout.Parent = column
-
-		return column
-	end
-
-	-- World Cup Standings + Golden Boot lead (the headline boards), then Wins/Coins.
-	local nationsColumn = buildColumn("🌍 World Cup", 0.02, 0.23)
-	local bootColumn = buildColumn("👟 Golden Boot", 0.26, 0.23)
-	local winsColumn = buildColumn("🏆 Most Wins", 0.50, 0.23)
-	local coinsColumn = buildColumn("💰 Most Coins", 0.74, 0.23)
-
-	-- Repopulate a column from its entries (rank · name · value).
-	local function fillColumn(column: ScrollingFrame, entries: { Types.LeaderEntry })
-		for _, child in column:GetChildren() do
-			if child:IsA("Frame") then
-				child:Destroy()
+		local function fillList(entries: { Types.LeaderEntry })
+			for _, child in list:GetChildren() do
+				if child:IsA("Frame") then
+					child:Destroy()
+				end
+			end
+			if #entries == 0 then
+				local holder = Instance.new("Frame")
+				holder.Size = UDim2.new(1, 0, 0, 60)
+				holder.BackgroundTransparency = 1
+				holder.Parent = list
+				local empty = Instance.new("TextLabel")
+				empty.Size = UDim2.fromScale(1, 1)
+				empty.BackgroundTransparency = 1
+				empty.Font = Enum.Font.GothamMedium
+				empty.TextScaled = true
+				empty.TextColor3 = Color3.fromRGB(140, 150, 170)
+				empty.Text = "No entries yet — be the first, play a match!"
+				empty.Parent = holder
+				return
+			end
+			for rank, entry in entries do
+				local row = Instance.new("Frame")
+				row.Size = UDim2.new(1, 0, 0, 52)
+				row.LayoutOrder = rank
+				row.BackgroundColor3 = if rank <= 3
+					then Color3.fromRGB(38, 43, 60)
+					else Color3.fromRGB(26, 30, 42)
+				corner(row, 12)
+				row.Parent = list
+				local medals = { "🥇", "🥈", "🥉" }
+				local rankLabel = Instance.new("TextLabel")
+				rankLabel.Size = UDim2.fromOffset(64, 52)
+				rankLabel.Position = UDim2.fromOffset(8, 0)
+				rankLabel.BackgroundTransparency = 1
+				rankLabel.Font = Enum.Font.GothamBlack
+				rankLabel.TextScaled = true
+				rankLabel.TextColor3 = if rank == 1
+					then BOARD_ACCENT
+					else Color3.fromRGB(200, 205, 220)
+				rankLabel.Text = medals[rank] or ("#" .. rank)
+				rankLabel.Parent = row
+				local nameLabel = Instance.new("TextLabel")
+				nameLabel.Position = UDim2.fromOffset(80, 0)
+				nameLabel.Size = UDim2.new(1, -260, 1, 0)
+				nameLabel.BackgroundTransparency = 1
+				nameLabel.Font = Enum.Font.GothamBold
+				nameLabel.TextScaled = true
+				nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+				nameLabel.TextColor3 = Color3.fromRGB(238, 240, 248)
+				nameLabel.Text = entry.name
+				nameLabel.Parent = row
+				local valueLabel = Instance.new("TextLabel")
+				valueLabel.AnchorPoint = Vector2.new(1, 0)
+				valueLabel.Position = UDim2.new(1, -18, 0, 0)
+				valueLabel.Size = UDim2.fromOffset(150, 52)
+				valueLabel.BackgroundTransparency = 1
+				valueLabel.Font = Enum.Font.GothamBlack
+				valueLabel.TextScaled = true
+				valueLabel.TextXAlignment = Enum.TextXAlignment.Right
+				valueLabel.TextColor3 = BOARD_ACCENT
+				valueLabel.Text = tostring(entry.value)
+				valueLabel.Parent = row
 			end
 		end
 
-		if #entries == 0 then
-			local empty = Instance.new("TextLabel")
-			empty.Size = UDim2.new(1, 0, 0, 48)
-			empty.BackgroundTransparency = 1
-			empty.Font = Enum.Font.Gotham
-			empty.TextScaled = true
-			empty.TextColor3 = Color3.fromRGB(140, 150, 170)
-			empty.Text = "No entries yet — play a match!"
-			-- Wrap in a Frame so the "clear Frames" pass can remove it next time.
-			local holder = Instance.new("Frame")
-			holder.Size = UDim2.new(1, 0, 0, 48)
-			holder.BackgroundTransparency = 1
-			empty.Parent = holder
-			holder.Parent = column
-			return
+		renderBoard = function()
+			fillList(TABS[activeTab].get())
 		end
 
-		for rank, entry in entries do
-			local row = Instance.new("Frame")
-			row.Size = UDim2.new(1, 0, 0, 44)
-			row.LayoutOrder = rank
-			row.BackgroundColor3 = if rank <= 3
-				then Color3.fromRGB(40, 44, 58)
-				else Color3.fromRGB(22, 25, 34)
-			corner(row)
-			row.Parent = column
-
-			local rankLabel = Instance.new("TextLabel")
-			rankLabel.Size = UDim2.fromScale(0.18, 1)
-			rankLabel.BackgroundTransparency = 1
-			rankLabel.Font = Enum.Font.GothamBlack
-			rankLabel.TextScaled = true
-			rankLabel.TextColor3 = if rank == 1
-				then Color3.fromRGB(240, 200, 40)
-				else Color3.fromRGB(200, 205, 220)
-			rankLabel.Text = "#" .. rank
-			rankLabel.Parent = row
-
-			local nameLabel = Instance.new("TextLabel")
-			nameLabel.Size = UDim2.fromScale(0.52, 1)
-			nameLabel.Position = UDim2.fromScale(0.2, 0)
-			nameLabel.BackgroundTransparency = 1
-			nameLabel.Font = Enum.Font.GothamBold
-			nameLabel.TextScaled = true
-			nameLabel.TextXAlignment = Enum.TextXAlignment.Left
-			nameLabel.TextColor3 = Color3.fromRGB(235, 235, 235)
-			nameLabel.Text = entry.name
-			nameLabel.Parent = row
-
-			local valueLabel = Instance.new("TextLabel")
-			valueLabel.Size = UDim2.fromScale(0.26, 1)
-			valueLabel.Position = UDim2.fromScale(0.73, 0)
-			valueLabel.BackgroundTransparency = 1
-			valueLabel.Font = Enum.Font.GothamBold
-			valueLabel.TextScaled = true
-			valueLabel.TextXAlignment = Enum.TextXAlignment.Right
-			valueLabel.TextColor3 = Color3.fromRGB(240, 200, 40)
-			valueLabel.Text = tostring(entry.value)
-			valueLabel.Parent = row
+		-- the tab row
+		local tabBtns: { TextButton } = {}
+		local function styleTabs()
+			for i, b in tabBtns do
+				local on = i == activeTab
+				b.BackgroundColor3 = if on then BOARD_ACCENT else Color3.fromRGB(34, 40, 56)
+				b.TextColor3 = if on
+					then Color3.fromRGB(22, 24, 32)
+					else Color3.fromRGB(196, 204, 222)
+			end
 		end
-	end
-
-	local function renderBoard()
-		fillColumn(nationsColumn, latestBoard.Nations)
-		fillColumn(bootColumn, latestBoard.Scorers)
-		fillColumn(winsColumn, latestBoard.Wins)
-		fillColumn(coinsColumn, latestBoard.Coins)
+		for i, tab in TABS do
+			local b = Instance.new("TextButton")
+			b.Size = UDim2.fromScale(0.235, 0.075)
+			b.Position = UDim2.fromScale(0.05 + (i - 1) * 0.227, 0.18)
+			b.Font = Enum.Font.GothamBold
+			b.TextScaled = true
+			b.AutoButtonColor = false
+			b.Text = tab.label
+			corner(b, 10)
+			local pad = Instance.new("UIPadding")
+			pad.PaddingLeft = UDim.new(0, 6)
+			pad.PaddingRight = UDim.new(0, 6)
+			pad.PaddingTop = UDim.new(0, 6)
+			pad.PaddingBottom = UDim.new(0, 6)
+			pad.Parent = b
+			b.Parent = boardPanel
+			tabBtns[i] = b
+			b.Activated:Connect(function()
+				Sound.play("Click")
+				activeTab = i
+				styleTabs()
+				renderBoard()
+			end)
+		end
+		styleTabs()
 	end
 
 	self.openRanks = function() -- exposed for the unified MENU
