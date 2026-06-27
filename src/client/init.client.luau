@@ -116,6 +116,54 @@ end
 hudMenu.refresh = function() end -- reassigned by the MENU UI block
 hudMenu.open = function() end -- reassigned by the MENU UI block
 
+-- ===== Shared panel chrome so every feature modal matches the MENU's look: a gradient body, a
+-- neutral stroke with an accent title, and a consistent "‹ Back" pill (returns to the MENU). =====
+-- Give a modal panel the house gradient + soft neutral border (call once per panel).
+local function dressPanel(panel: GuiObject)
+	panel.BackgroundColor3 = Color3.fromRGB(20, 24, 38)
+	local g = Instance.new("UIGradient")
+	g.Color = ColorSequence.new(Color3.fromRGB(28, 33, 52), Color3.fromRGB(15, 18, 30))
+	g.Rotation = 90
+	g.Parent = panel
+	local existing = panel:FindFirstChildOfClass("UIStroke")
+	if existing then
+		existing.Color = Color3.fromRGB(70, 78, 104)
+		existing.Thickness = 1.5
+		existing.Transparency = 0.15
+	end
+end
+-- A "‹ Back" pill in the top-right of `parent`; `onBack` runs on press. Returns the button.
+local function backPill(parent: GuiObject, onBack: () -> ()): TextButton
+	local b = Instance.new("TextButton")
+	b.Name = "BackPill"
+	b.AnchorPoint = Vector2.new(1, 0)
+	b.Position = UDim2.new(1, -12, 0, 12)
+	b.Size = UDim2.fromOffset(82, 34)
+	b.BackgroundColor3 = Color3.fromRGB(42, 47, 66)
+	b.AutoButtonColor = false
+	b.Font = Enum.Font.GothamBold
+	b.TextScaled = true
+	b.TextColor3 = Color3.fromRGB(210, 216, 230)
+	b.Text = "‹  Back"
+	b.ZIndex = 5
+	b.Parent = parent
+	local c = Instance.new("UICorner")
+	c.CornerRadius = UDim.new(0, 10)
+	c.Parent = b
+	local p = Instance.new("UIPadding")
+	p.PaddingTop = UDim.new(0, 8)
+	p.PaddingBottom = UDim.new(0, 8)
+	p.Parent = b
+	b.MouseEnter:Connect(function()
+		b.BackgroundColor3 = Color3.fromRGB(56, 62, 84)
+	end)
+	b.MouseLeave:Connect(function()
+		b.BackgroundColor3 = Color3.fromRGB(42, 47, 66)
+	end)
+	b.Activated:Connect(onBack)
+	return b
+end
+
 local joinQueue = Net.getEvent(Net.Events.JoinQueue)
 local leaveQueue = Net.getEvent(Net.Events.LeaveQueue)
 local submitInput = Net.getEvent(Net.Events.SubmitInput)
@@ -2340,6 +2388,7 @@ do
 	ps.Color = Color3.fromRGB(255, 200, 70)
 	ps.Thickness = 3
 	ps.Parent = panel
+	dressPanel(panel)
 
 	local function mk(
 		y: number,
@@ -2387,17 +2436,10 @@ do
 	upgradeBtn.Parent = panel
 	rounded(upgradeBtn, 12)
 
-	local closeBtn = Instance.new("TextButton")
-	closeBtn.AnchorPoint = Vector2.new(1, 0)
-	closeBtn.Position = UDim2.new(1, -10, 0, 10)
-	closeBtn.Size = UDim2.fromOffset(34, 34)
-	closeBtn.BackgroundColor3 = Color3.fromRGB(40, 44, 58)
-	closeBtn.Font = Enum.Font.GothamBold
-	closeBtn.TextScaled = true
-	closeBtn.TextColor3 = Color3.fromRGB(220, 226, 236)
-	closeBtn.Text = "✕"
-	closeBtn.Parent = panel
-	rounded(closeBtn, 8)
+	backPill(panel, function()
+		backdrop.Visible = false
+		hudMenu.open()
+	end)
 
 	local function ratePerSec(): number
 		return info.ratePerHr / 3600
@@ -2435,9 +2477,6 @@ do
 		end,
 	})
 	backdrop.Activated:Connect(function()
-		backdrop.Visible = false
-	end)
-	closeBtn.Activated:Connect(function()
 		backdrop.Visible = false
 	end)
 
@@ -2509,6 +2548,7 @@ do
 	ps.Color = Color3.fromRGB(255, 200, 70)
 	ps.Thickness = 3
 	ps.Parent = panel
+	dressPanel(panel)
 
 	local titleLbl = Instance.new("TextLabel")
 	titleLbl.Size = UDim2.new(1, -28, 0, 30)
@@ -2593,17 +2633,10 @@ do
 	openBtn.Parent = panel
 	rounded(openBtn, 12)
 
-	local closeBtn = Instance.new("TextButton")
-	closeBtn.AnchorPoint = Vector2.new(1, 0)
-	closeBtn.Position = UDim2.new(1, -10, 0, 10)
-	closeBtn.Size = UDim2.fromOffset(34, 34)
-	closeBtn.BackgroundColor3 = Color3.fromRGB(40, 44, 58)
-	closeBtn.Font = Enum.Font.GothamBold
-	closeBtn.TextScaled = true
-	closeBtn.TextColor3 = Color3.fromRGB(220, 226, 236)
-	closeBtn.Text = "✕"
-	closeBtn.Parent = panel
-	rounded(closeBtn, 8)
+	backPill(panel, function()
+		backdrop.Visible = false
+		hudMenu.open()
+	end)
 
 	local function refresh()
 		local distinct = 0
@@ -2739,9 +2772,6 @@ do
 	backdrop.Activated:Connect(function()
 		backdrop.Visible = false
 	end)
-	closeBtn.Activated:Connect(function()
-		backdrop.Visible = false
-	end)
 
 	Net.getEvent(Net.Events.ChoicesMode).OnClientEvent:Connect(function(payload: unknown)
 		gui.Enabled = not (payload :: { active: boolean }).active
@@ -2805,6 +2835,7 @@ do
 	ps.Color = Color3.fromRGB(140, 230, 170)
 	ps.Thickness = 3
 	ps.Parent = panel
+	dressPanel(panel)
 
 	local titleLbl = Instance.new("TextLabel")
 	titleLbl.Size = UDim2.new(1, -28, 0, 30)
@@ -2827,17 +2858,10 @@ do
 	timerLbl.Text = ""
 	timerLbl.Parent = panel
 
-	local closeBtn = Instance.new("TextButton")
-	closeBtn.AnchorPoint = Vector2.new(1, 0)
-	closeBtn.Position = UDim2.new(1, -10, 0, 10)
-	closeBtn.Size = UDim2.fromOffset(34, 34)
-	closeBtn.BackgroundColor3 = Color3.fromRGB(40, 44, 60)
-	closeBtn.Font = Enum.Font.GothamBlack
-	closeBtn.TextScaled = true
-	closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-	closeBtn.Text = "✕"
-	closeBtn.Parent = panel
-	rounded(closeBtn, 8)
+	backPill(panel, function()
+		backdrop.Visible = false
+		hudMenu.open()
+	end)
 
 	local list = Instance.new("Frame")
 	list.Position = UDim2.fromOffset(14, 76)
@@ -2990,9 +3014,6 @@ do
 	backdrop.Activated:Connect(function()
 		backdrop.Visible = false
 	end)
-	closeBtn.Activated:Connect(function()
-		backdrop.Visible = false
-	end)
 
 	Net.getEvent(Net.Events.ChoicesMode).OnClientEvent:Connect(function(payload: unknown)
 		gui.Enabled = not (payload :: { active: boolean }).active
@@ -3052,6 +3073,7 @@ do
 	ps.Color = Color3.fromRGB(255, 215, 120)
 	ps.Thickness = 3
 	ps.Parent = panel
+	dressPanel(panel)
 
 	local titleLbl = Instance.new("TextLabel")
 	titleLbl.Size = UDim2.new(1, -28, 0, 28)
@@ -3084,17 +3106,10 @@ do
 	youLbl.Parent = panel
 	rounded(youLbl, 8)
 
-	local closeBtn = Instance.new("TextButton")
-	closeBtn.AnchorPoint = Vector2.new(1, 0)
-	closeBtn.Position = UDim2.new(1, -10, 0, 10)
-	closeBtn.Size = UDim2.fromOffset(34, 34)
-	closeBtn.BackgroundColor3 = Color3.fromRGB(40, 44, 60)
-	closeBtn.Font = Enum.Font.GothamBlack
-	closeBtn.TextScaled = true
-	closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-	closeBtn.Text = "✕"
-	closeBtn.Parent = panel
-	rounded(closeBtn, 8)
+	backPill(panel, function()
+		backdrop.Visible = false
+		hudMenu.open()
+	end)
 
 	local scroll = Instance.new("ScrollingFrame")
 	scroll.Position = UDim2.fromOffset(14, 108)
@@ -3239,9 +3254,6 @@ do
 	backdrop.Activated:Connect(function()
 		backdrop.Visible = false
 	end)
-	closeBtn.Activated:Connect(function()
-		backdrop.Visible = false
-	end)
 
 	Net.getEvent(Net.Events.ChoicesMode).OnClientEvent:Connect(function(payload: unknown)
 		gui.Enabled = not (payload :: { active: boolean }).active
@@ -3301,13 +3313,19 @@ do
 	pkStroke.Color = Color3.fromRGB(150, 200, 255)
 	pkStroke.Thickness = 3
 	pkStroke.Parent = pickPanel
+	dressPanel(pickPanel)
+	backPill(pickPanel, function()
+		pickBack.Visible = false
+		hudMenu.open()
+	end)
 
 	local pkTitle = Instance.new("TextLabel")
-	pkTitle.Size = UDim2.new(1, -28, 0, 28)
+	pkTitle.Size = UDim2.new(1, -104, 0, 28)
 	pkTitle.Position = UDim2.fromOffset(14, 12)
 	pkTitle.BackgroundTransparency = 1
 	pkTitle.Font = Enum.Font.GothamBlack
 	pkTitle.TextScaled = true
+	pkTitle.TextXAlignment = Enum.TextXAlignment.Left
 	pkTitle.TextColor3 = Color3.fromRGB(150, 200, 255)
 	pkTitle.Text = "🔄 TRADE WITH…"
 	pkTitle.Parent = pickPanel
@@ -3450,6 +3468,7 @@ do
 	winStroke.Color = Color3.fromRGB(150, 200, 255)
 	winStroke.Thickness = 3
 	winStroke.Parent = win
+	dressPanel(win)
 
 	local winTitle = Instance.new("TextLabel")
 	winTitle.Size = UDim2.new(1, -28, 0, 26)
