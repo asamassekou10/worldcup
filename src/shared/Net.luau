@@ -128,6 +128,9 @@ Net.Events = {
 	CardState = "CardState", -- server -> client: { owned, packs, distinct, total }
 	CardOpen = "CardOpen", -- client -> server: (no payload) open one pack
 	CardOpened = "CardOpened", -- server -> client: { rolled: {string}, newIds: {[string]: boolean} }
+
+	-- Live events: the current always-on event (Double Coins / XP / Pack Frenzy / Weekend).
+	LiveEvent = "LiveEvent", -- server -> client: { key, label, emoji, coinMult, xpMult, endsAt }
 }
 
 local folder: Folder?

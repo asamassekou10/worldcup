@@ -16,6 +16,7 @@ local Progression = require(Shared:WaitForChild("Progression"))
 local WorldCup = require(Shared:WaitForChild("WorldCup"))
 local SeasonPass = require(Shared:WaitForChild("SeasonPass"))
 local CardBank = require(Shared:WaitForChild("CardBank"))
+local LiveEvents = require(Shared:WaitForChild("LiveEvents"))
 
 local ProfileStore = require(script.Parent:WaitForChild("ProfileStore"))
 local BadgeService = require(script.Parent:WaitForChild("BadgeService"))
@@ -544,8 +545,10 @@ function DataService.grantReward(player: Player, coins: number, xp: number)
 	end
 	local data = profile.Data
 	local beforeLevel = Progression.levelFromXp(data.XP)
-	data.Coins += math.max(coins, 0)
-	data.XP += math.max(xp, 0)
+	-- live-event multipliers (Double Coins / Double XP / weekend) apply to all earned rewards
+	local ev = LiveEvents.current()
+	data.Coins += math.floor(math.max(coins, 0) * ev.coinMult)
+	data.XP += math.floor(math.max(xp, 0) * ev.xpMult)
 	local afterLevel = Progression.levelFromXp(data.XP)
 	if afterLevel > beforeLevel then
 		notify(player, string.format("⬆️ Level %d!", afterLevel))
@@ -676,7 +679,7 @@ function DataService.grantPack(player: Player, n: number)
 	if not profile or not profile:IsActive() then
 		return
 	end
-	profile.Data.CardPacks += n
+	profile.Data.CardPacks += n + (n > 0 and LiveEvents.current().packBonus or 0) -- Pack Frenzy bonus
 	pushToClient(player)
 end
 

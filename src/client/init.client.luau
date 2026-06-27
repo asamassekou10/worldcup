@@ -1780,6 +1780,99 @@ do
 	end)
 end
 
+-- ===== Live event banner: an always-on event (Double Coins / XP / Pack Frenzy / Weekend) with a
+-- live countdown, top-center, so there's always a "play NOW" reason. =====
+do
+	local current: { emoji: string, label: string, endsAt: number, key: string }? = nil
+	local COLORS = {
+		coins = Color3.fromRGB(255, 200, 70),
+		xp = Color3.fromRGB(70, 160, 255),
+		packs = Color3.fromRGB(190, 100, 255),
+		weekend = Color3.fromRGB(255, 90, 120),
+	}
+
+	local gui = Instance.new("ScreenGui")
+	gui.Name = "LiveEventBanner"
+	gui.ResetOnSpawn = false
+	gui.IgnoreGuiInset = true
+	gui.DisplayOrder = 23
+	gui.Parent = player:WaitForChild("PlayerGui")
+
+	local pill = Instance.new("Frame")
+	pill.AnchorPoint = Vector2.new(0.5, 0)
+	pill.Position = UDim2.new(0.5, 0, 0, 150)
+	pill.Size = UDim2.fromOffset(340, 34)
+	pill.BackgroundColor3 = Color3.fromRGB(16, 20, 32)
+	pill.BackgroundTransparency = 0.1
+	pill.Visible = false
+	pill.Parent = gui
+	local pc = Instance.new("UICorner")
+	pc.CornerRadius = UDim.new(1, 0)
+	pc.Parent = pill
+	local pstroke = Instance.new("UIStroke")
+	pstroke.Thickness = 2
+	pstroke.Color = Color3.fromRGB(255, 200, 70)
+	pstroke.Parent = pill
+	local lbl = Instance.new("TextLabel")
+	lbl.Size = UDim2.fromScale(1, 1)
+	lbl.BackgroundTransparency = 1
+	lbl.Font = Enum.Font.GothamBlack
+	lbl.TextScaled = true
+	lbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+	lbl.TextStrokeTransparency = 0.4
+	lbl.Text = ""
+	lbl.Parent = pill
+	TweenService:Create(
+		pstroke,
+		TweenInfo.new(0.8, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+		{ Transparency = 0.5 }
+	):Play()
+
+	local function fmt(sec: number): string
+		sec = math.max(0, math.floor(sec))
+		local h = math.floor(sec / 3600)
+		local m = math.floor((sec % 3600) / 60)
+		local s = sec % 60
+		return if h > 0
+			then string.format("%d:%02d:%02d", h, m, s)
+			else string.format("%d:%02d", m, s)
+	end
+
+	Net.getEvent(Net.Events.LiveEvent).OnClientEvent:Connect(function(payload: unknown)
+		current = payload :: typeof(current)
+		if current then
+			local color = COLORS[current.key] or Color3.fromRGB(255, 200, 70)
+			pstroke.Color = color
+			lbl.TextColor3 = color
+			pill.Visible = true
+		end
+	end)
+
+	task.spawn(function()
+		while true do
+			if current and pill.Visible then
+				lbl.Text = string.format(
+					"%s %s · ends in %s",
+					current.emoji,
+					current.label,
+					fmt(current.endsAt - os.time())
+				)
+			end
+			task.wait(1)
+		end
+	end)
+
+	Net.getEvent(Net.Events.ChoicesMode).OnClientEvent:Connect(function(payload: unknown)
+		gui.Enabled = not (payload :: { active: boolean }).active
+	end)
+	Net.getEvent(Net.Events.RoundStart).OnClientEvent:Connect(function()
+		gui.Enabled = false
+	end)
+	Net.getEvent(Net.Events.MatchOver).OnClientEvent:Connect(function()
+		gui.Enabled = true
+	end)
+end
+
 -- ===== Idle Football Club: a passive coin earner (the daily return hook). The button flips to a
 -- green "💰 +X" when coins have piled up; the panel banks them + upgrades the earn rate. =====
 do
