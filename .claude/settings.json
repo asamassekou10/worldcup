@@ -198,7 +198,9 @@
       "Bash(~/.rokit/bin/stylua src/client/init.client.luau src/server/DataService.luau src/server/StoreService.luau src/server/init.server.luau src/shared/DailyDeals.luau src/shared/Net.luau)",
       "Bash(~/.rokit/bin/selene src/client/init.client.luau src/server/DataService.luau src/server/StoreService.luau src/server/init.server.luau src/shared/DailyDeals.luau)",
       "Bash(~/.rokit/bin/stylua src/client/init.client.luau src/server/DataService.luau src/server/TournamentService.luau src/server/init.server.luau src/shared/Tournament.luau src/shared/Net.luau)",
-      "Bash(~/.rokit/bin/selene src/client/init.client.luau src/server/DataService.luau src/server/TournamentService.luau src/server/init.server.luau src/shared/Tournament.luau)"
+      "Bash(~/.rokit/bin/selene src/client/init.client.luau src/server/DataService.luau src/server/TournamentService.luau src/server/init.server.luau src/shared/Tournament.luau)",
+      "Bash(~/.rokit/bin/stylua src/client/init.client.luau src/server/DataService.luau src/server/TradeService.luau src/server/init.server.luau src/shared/Net.luau)",
+      "Bash(~/.rokit/bin/selene src/client/init.client.luau src/server/DataService.luau src/server/TradeService.luau src/server/init.server.luau)"
     ]
   }
 }

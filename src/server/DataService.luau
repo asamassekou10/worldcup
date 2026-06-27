@@ -823,6 +823,79 @@ function DataService.cardInfo(player: Player): { [string]: any }?
 	}
 end
 
+-- Re-push the card collection to a client (used after a trade changes ownership). Fires the same
+-- CardState event CardService uses, so the client's collection panel stays correct.
+function DataService.pushCardState(player: Player)
+	local info = DataService.cardInfo(player)
+	if info then
+		Net.getEvent(Net.Events.CardState):FireClient(player, info)
+	end
+end
+
+-- How many of card `id` a player currently owns (0 if none / not loaded).
+function DataService.cardCount(player: Player, id: string): number
+	local profile = profiles[player]
+	if not profile or not profile:IsActive() then
+		return 0
+	end
+	return profile.Data.CardsOwned[id] or 0
+end
+
+-- Execute a two-sided card trade ATOMICALLY. Both profiles are session-locked to THIS server, so
+-- validating both offers in full and only then mutating (with no yields in between) makes the swap
+-- race-free and dupe-proof. `aOffer`/`bOffer` map cardId -> count the respective player gives up.
+-- Returns (ok, message). On success both clients get a refreshed CardState.
+function DataService.executeTrade(
+	a: Player,
+	aOffer: { [string]: number },
+	b: Player,
+	bOffer: { [string]: number }
+): (boolean, string)
+	local pa, pb = profiles[a], profiles[b]
+	if not pa or not pa:IsActive() or not pb or not pb:IsActive() then
+		return false, "A player isn't ready"
+	end
+	local da, db = pa.Data, pb.Data
+
+	-- Validate ownership of EVERY offered card before touching anything.
+	local function validate(data: any, offer: { [string]: number }): boolean
+		for id, count in offer do
+			if type(count) ~= "number" or count < 1 then
+				return false
+			end
+			if not CardBank.byId[id] then
+				return false -- unknown card id (tampered client)
+			end
+			if (data.CardsOwned[id] or 0) < count then
+				return false -- doesn't own enough
+			end
+		end
+		return true
+	end
+	if not validate(da, aOffer) or not validate(db, bOffer) then
+		return false, "Offer is no longer valid"
+	end
+
+	-- Apply: remove from giver, add to receiver. (Synchronous -> atomic.)
+	local function move(from: any, to: any, offer: { [string]: number })
+		for id, count in offer do
+			local left = (from.CardsOwned[id] or 0) - count
+			if left > 0 then
+				from.CardsOwned[id] = left
+			else
+				from.CardsOwned[id] = nil
+			end
+			to.CardsOwned[id] = (to.CardsOwned[id] or 0) + count
+		end
+	end
+	move(da, db, aOffer)
+	move(db, da, bOffer)
+
+	DataService.pushCardState(a)
+	DataService.pushCardState(b)
+	return true, "Trade complete!"
+end
+
 -- Open ONE pack: rolls CARDS_PER_PACK cards, banks them, pays the set-completion bonus once.
 -- Returns the rolled card ids + which were NEW (for the reveal), or nil if no packs.
 function DataService.openPack(

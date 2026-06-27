@@ -2873,6 +2873,467 @@ do
 	end)
 end
 
+-- ===== Card trading: a 🔄 TRADE button opens a player picker; a two-sided window lets you offer
+-- cards, LOCK, then CONFIRM. The server validates + swaps atomically (no dupes). =====
+do
+	local CardBank = require(Shared:WaitForChild("CardBank"))
+	local pg = player:WaitForChild("PlayerGui")
+	local owned: { [string]: number } = {}
+	local mine: { [string]: number } = {}
+	local theirs: { [string]: number } = {}
+	local partnerName = ""
+	local myLock, theirLock, bothLocked = false, false, false
+	local active = false
+
+	local function rounded(g: GuiObject, r: number)
+		local c = Instance.new("UICorner")
+		c.CornerRadius = UDim.new(0, r)
+		c.Parent = g
+	end
+
+	local gui = Instance.new("ScreenGui")
+	gui.Name = "Trading"
+	gui.ResetOnSpawn = false
+	gui.IgnoreGuiInset = true
+	gui.DisplayOrder = 26
+	gui.Parent = pg
+
+	local btn = Instance.new("TextButton")
+	btn.AnchorPoint = Vector2.new(1, 0)
+	btn.Position = UDim2.new(1, -12, 0, 358)
+	btn.Size = UDim2.fromOffset(140, 42)
+	btn.BackgroundColor3 = Color3.fromRGB(22, 24, 34)
+	btn.BackgroundTransparency = 0.1
+	btn.Font = Enum.Font.GothamBlack
+	btn.TextScaled = true
+	btn.TextColor3 = Color3.fromRGB(150, 200, 255)
+	btn.Text = "🔄 TRADE"
+	btn.Parent = gui
+	rounded(btn, 10)
+
+	-- ---- Player picker ----
+	local pickBack = Instance.new("TextButton")
+	pickBack.Size = UDim2.fromScale(1, 1)
+	pickBack.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+	pickBack.BackgroundTransparency = 0.45
+	pickBack.Text = ""
+	pickBack.AutoButtonColor = false
+	pickBack.Visible = false
+	pickBack.Parent = gui
+
+	local pickPanel = Instance.new("Frame")
+	pickPanel.AnchorPoint = Vector2.new(0.5, 0.5)
+	pickPanel.Position = UDim2.fromScale(0.5, 0.5)
+	pickPanel.Size = UDim2.fromOffset(340, 420)
+	pickPanel.BackgroundColor3 = Color3.fromRGB(16, 20, 34)
+	pickPanel.BorderSizePixel = 0
+	pickPanel.Parent = pickBack
+	rounded(pickPanel, 16)
+	local pkStroke = Instance.new("UIStroke")
+	pkStroke.Color = Color3.fromRGB(150, 200, 255)
+	pkStroke.Thickness = 3
+	pkStroke.Parent = pickPanel
+
+	local pkTitle = Instance.new("TextLabel")
+	pkTitle.Size = UDim2.new(1, -28, 0, 28)
+	pkTitle.Position = UDim2.fromOffset(14, 12)
+	pkTitle.BackgroundTransparency = 1
+	pkTitle.Font = Enum.Font.GothamBlack
+	pkTitle.TextScaled = true
+	pkTitle.TextColor3 = Color3.fromRGB(150, 200, 255)
+	pkTitle.Text = "🔄 TRADE WITH…"
+	pkTitle.Parent = pickPanel
+
+	local pkScroll = Instance.new("ScrollingFrame")
+	pkScroll.Position = UDim2.fromOffset(14, 50)
+	pkScroll.Size = UDim2.new(1, -28, 1, -64)
+	pkScroll.BackgroundTransparency = 1
+	pkScroll.BorderSizePixel = 0
+	pkScroll.ScrollBarThickness = 5
+	pkScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	pkScroll.CanvasSize = UDim2.new()
+	pkScroll.Parent = pickPanel
+	local pkList = Instance.new("UIListLayout")
+	pkList.Padding = UDim.new(0, 6)
+	pkList.Parent = pkScroll
+
+	local function refreshPicker()
+		for _, c in pkScroll:GetChildren() do
+			if c:IsA("TextButton") then
+				c:Destroy()
+			end
+		end
+		local others = 0
+		for _, other in Players:GetPlayers() do
+			if other ~= player then
+				others += 1
+				local row = Instance.new("TextButton")
+				row.Size = UDim2.new(1, 0, 0, 44)
+				row.BackgroundColor3 = Color3.fromRGB(30, 36, 54)
+				row.Font = Enum.Font.GothamBold
+				row.TextScaled = true
+				row.TextColor3 = Color3.fromRGB(235, 240, 250)
+				row.Text = "  " .. other.DisplayName .. "  →"
+				row.TextXAlignment = Enum.TextXAlignment.Left
+				row.Parent = pkScroll
+				rounded(row, 8)
+				row.Activated:Connect(function()
+					Net.getEvent(Net.Events.TradeInvite):FireServer({ targetUserId = other.UserId })
+					pickBack.Visible = false
+				end)
+			end
+		end
+		if others == 0 then
+			local empty = Instance.new("TextButton")
+			empty.Size = UDim2.new(1, 0, 0, 44)
+			empty.BackgroundTransparency = 1
+			empty.Font = Enum.Font.GothamMedium
+			empty.TextScaled = true
+			empty.TextColor3 = Color3.fromRGB(150, 158, 170)
+			empty.Text = "No one else is here yet"
+			empty.AutoButtonColor = false
+			empty.Parent = pkScroll
+		end
+	end
+
+	btn.Activated:Connect(function()
+		refreshPicker()
+		pickBack.Visible = true
+	end)
+	pickBack.Activated:Connect(function()
+		pickBack.Visible = false
+	end)
+
+	-- ---- Incoming-invite toast ----
+	local invite = Instance.new("Frame")
+	invite.AnchorPoint = Vector2.new(0.5, 1)
+	invite.Position = UDim2.new(0.5, 0, 1, -200)
+	invite.Size = UDim2.fromOffset(360, 96)
+	invite.BackgroundColor3 = Color3.fromRGB(18, 22, 34)
+	invite.Visible = false
+	invite.Parent = gui
+	rounded(invite, 14)
+	local ivStroke = Instance.new("UIStroke")
+	ivStroke.Color = Color3.fromRGB(150, 200, 255)
+	ivStroke.Thickness = 2
+	ivStroke.Parent = invite
+	local ivLbl = Instance.new("TextLabel")
+	ivLbl.Size = UDim2.new(1, -20, 0, 40)
+	ivLbl.Position = UDim2.fromOffset(10, 8)
+	ivLbl.BackgroundTransparency = 1
+	ivLbl.Font = Enum.Font.GothamBold
+	ivLbl.TextScaled = true
+	ivLbl.TextColor3 = Color3.fromRGB(235, 240, 250)
+	ivLbl.Text = ""
+	ivLbl.Parent = invite
+	local ivYes = Instance.new("TextButton")
+	ivYes.AnchorPoint = Vector2.new(0, 1)
+	ivYes.Position = UDim2.new(0, 12, 1, -10)
+	ivYes.Size = UDim2.fromOffset(158, 34)
+	ivYes.BackgroundColor3 = Color3.fromRGB(60, 170, 90)
+	ivYes.Font = Enum.Font.GothamBlack
+	ivYes.TextScaled = true
+	ivYes.TextColor3 = Color3.fromRGB(255, 255, 255)
+	ivYes.Text = "✓ ACCEPT"
+	ivYes.Parent = invite
+	rounded(ivYes, 8)
+	local ivNo = Instance.new("TextButton")
+	ivNo.AnchorPoint = Vector2.new(1, 1)
+	ivNo.Position = UDim2.new(1, -12, 1, -10)
+	ivNo.Size = UDim2.fromOffset(158, 34)
+	ivNo.BackgroundColor3 = Color3.fromRGB(60, 64, 80)
+	ivNo.Font = Enum.Font.GothamBlack
+	ivNo.TextScaled = true
+	ivNo.TextColor3 = Color3.fromRGB(255, 255, 255)
+	ivNo.Text = "✕ DECLINE"
+	ivNo.Parent = invite
+	rounded(ivNo, 8)
+	ivYes.Activated:Connect(function()
+		Net.getEvent(Net.Events.TradeRespond):FireServer({ accept = true })
+		invite.Visible = false
+	end)
+	ivNo.Activated:Connect(function()
+		Net.getEvent(Net.Events.TradeRespond):FireServer({ accept = false })
+		invite.Visible = false
+	end)
+
+	-- ---- Trade window ----
+	local tradeBack = Instance.new("Frame")
+	tradeBack.Size = UDim2.fromScale(1, 1)
+	tradeBack.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+	tradeBack.BackgroundTransparency = 0.4
+	tradeBack.Visible = false
+	tradeBack.Parent = gui
+
+	local win = Instance.new("Frame")
+	win.AnchorPoint = Vector2.new(0.5, 0.5)
+	win.Position = UDim2.fromScale(0.5, 0.5)
+	win.Size = UDim2.fromOffset(560, 560)
+	win.BackgroundColor3 = Color3.fromRGB(16, 20, 34)
+	win.BorderSizePixel = 0
+	win.Parent = tradeBack
+	rounded(win, 18)
+	local winStroke = Instance.new("UIStroke")
+	winStroke.Color = Color3.fromRGB(150, 200, 255)
+	winStroke.Thickness = 3
+	winStroke.Parent = win
+
+	local winTitle = Instance.new("TextLabel")
+	winTitle.Size = UDim2.new(1, -28, 0, 26)
+	winTitle.Position = UDim2.fromOffset(14, 12)
+	winTitle.BackgroundTransparency = 1
+	winTitle.Font = Enum.Font.GothamBlack
+	winTitle.TextScaled = true
+	winTitle.TextColor3 = Color3.fromRGB(150, 200, 255)
+	winTitle.Text = "🔄 TRADE"
+	winTitle.Parent = win
+
+	-- Two offer columns.
+	local function offerColumn(x: number, anchorRight: boolean): (Frame, TextLabel)
+		local col = Instance.new("Frame")
+		col.Position = UDim2.fromOffset(x, 46)
+		col.Size = UDim2.fromOffset(262, 150)
+		col.BackgroundColor3 = Color3.fromRGB(24, 28, 42)
+		col.Parent = win
+		rounded(col, 10)
+		local hdr = Instance.new("TextLabel")
+		hdr.Size = UDim2.new(1, -12, 0, 22)
+		hdr.Position = UDim2.fromOffset(6, 4)
+		hdr.BackgroundTransparency = 1
+		hdr.Font = Enum.Font.GothamBlack
+		hdr.TextScaled = true
+		hdr.TextXAlignment = Enum.TextXAlignment.Left
+		hdr.TextColor3 = if anchorRight
+			then Color3.fromRGB(255, 200, 120)
+			else Color3.fromRGB(140, 230, 170)
+		hdr.Text = if anchorRight then "THEY GIVE" else "YOU GIVE"
+		hdr.Parent = col
+		local body = Instance.new("TextLabel")
+		body.Size = UDim2.new(1, -12, 1, -30)
+		body.Position = UDim2.fromOffset(6, 28)
+		body.BackgroundTransparency = 1
+		body.Font = Enum.Font.GothamMedium
+		body.TextWrapped = true
+		body.TextYAlignment = Enum.TextYAlignment.Top
+		body.TextXAlignment = Enum.TextXAlignment.Left
+		body.TextSize = 16
+		body.TextColor3 = Color3.fromRGB(235, 240, 250)
+		body.Text = ""
+		body.Parent = col
+		return col, body
+	end
+	local _, mineBody = offerColumn(14, false)
+	local _, theirBody = offerColumn(284, true)
+
+	-- Your inventory (tap +/- to move cards into your offer).
+	local invScroll = Instance.new("ScrollingFrame")
+	invScroll.Position = UDim2.fromOffset(14, 206)
+	invScroll.Size = UDim2.fromOffset(532, 280)
+	invScroll.BackgroundTransparency = 1
+	invScroll.BorderSizePixel = 0
+	invScroll.ScrollBarThickness = 5
+	invScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	invScroll.CanvasSize = UDim2.new()
+	invScroll.Parent = win
+	local invList = Instance.new("UIListLayout")
+	invList.Padding = UDim.new(0, 5)
+	invList.Parent = invScroll
+
+	local lockBtn = Instance.new("TextButton")
+	lockBtn.AnchorPoint = Vector2.new(0, 1)
+	lockBtn.Position = UDim2.new(0, 14, 1, -12)
+	lockBtn.Size = UDim2.fromOffset(170, 42)
+	lockBtn.Font = Enum.Font.GothamBlack
+	lockBtn.TextScaled = true
+	lockBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+	lockBtn.Parent = win
+	rounded(lockBtn, 10)
+
+	local confirmBtn = Instance.new("TextButton")
+	confirmBtn.AnchorPoint = Vector2.new(0.5, 1)
+	confirmBtn.Position = UDim2.new(0.5, 30, 1, -12)
+	confirmBtn.Size = UDim2.fromOffset(170, 42)
+	confirmBtn.Font = Enum.Font.GothamBlack
+	confirmBtn.TextScaled = true
+	confirmBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+	confirmBtn.Parent = win
+	rounded(confirmBtn, 10)
+
+	local cancelBtn = Instance.new("TextButton")
+	cancelBtn.AnchorPoint = Vector2.new(1, 1)
+	cancelBtn.Position = UDim2.new(1, -14, 1, -12)
+	cancelBtn.Size = UDim2.fromOffset(140, 42)
+	cancelBtn.BackgroundColor3 = Color3.fromRGB(70, 40, 46)
+	cancelBtn.Font = Enum.Font.GothamBlack
+	cancelBtn.TextScaled = true
+	cancelBtn.TextColor3 = Color3.fromRGB(255, 170, 170)
+	cancelBtn.Text = "✕ CANCEL"
+	cancelBtn.Parent = win
+	rounded(cancelBtn, 10)
+
+	local function offerText(offer: { [string]: number }): string
+		local lines = {}
+		for id, count in offer do
+			local c = CardBank.byId[id]
+			table.insert(lines, string.format("• %s ×%d", if c then c.name else id, count))
+		end
+		return if #lines > 0 then table.concat(lines, "\n") else "(nothing yet)"
+	end
+
+	local function renderInventory()
+		for _, c in invScroll:GetChildren() do
+			if c:IsA("Frame") then
+				c:Destroy()
+			end
+		end
+		for _, card in CardBank.Cards do
+			local have = owned[card.id] or 0
+			if have > 0 then
+				local offered = mine[card.id] or 0
+				local rarity = CardBank.RarityColor[card.rarity] or Color3.fromRGB(150, 150, 150)
+				local row = Instance.new("Frame")
+				row.Size = UDim2.new(1, 0, 0, 38)
+				row.BackgroundColor3 = Color3.fromRGB(26, 30, 44)
+				row.Parent = invScroll
+				rounded(row, 8)
+				local rs = Instance.new("UIStroke")
+				rs.Color = rarity
+				rs.Thickness = 1
+				rs.Parent = row
+				local nm = Instance.new("TextLabel")
+				nm.Position = UDim2.fromOffset(10, 0)
+				nm.Size = UDim2.new(1, -190, 1, 0)
+				nm.BackgroundTransparency = 1
+				nm.Font = Enum.Font.GothamBold
+				nm.TextScaled = true
+				nm.TextXAlignment = Enum.TextXAlignment.Left
+				nm.TextColor3 = rarity
+				nm.Text = card.name
+				nm.Parent = row
+				local cnt = Instance.new("TextLabel")
+				cnt.AnchorPoint = Vector2.new(1, 0)
+				cnt.Position = UDim2.new(1, -132, 0, 0)
+				cnt.Size = UDim2.fromOffset(120, 38)
+				cnt.BackgroundTransparency = 1
+				cnt.Font = Enum.Font.GothamBold
+				cnt.TextScaled = true
+				cnt.TextXAlignment = Enum.TextXAlignment.Right
+				cnt.TextColor3 = Color3.fromRGB(180, 188, 205)
+				cnt.Text = string.format("offer %d / %d", offered, have)
+				cnt.Parent = row
+				local function stepper(label: string, ax: number, delta: number)
+					local s = Instance.new("TextButton")
+					s.AnchorPoint = Vector2.new(1, 0.5)
+					s.Position = UDim2.new(1, ax, 0.5, 0)
+					s.Size = UDim2.fromOffset(30, 30)
+					s.BackgroundColor3 = Color3.fromRGB(44, 50, 70)
+					s.Font = Enum.Font.GothamBlack
+					s.TextScaled = true
+					s.TextColor3 = Color3.fromRGB(255, 255, 255)
+					s.Text = label
+					s.Parent = row
+					rounded(s, 6)
+					s.Activated:Connect(function()
+						Net.getEvent(Net.Events.TradeAction)
+							:FireServer({ action = "offer", id = card.id, delta = delta })
+					end)
+				end
+				stepper("−", -42, -1)
+				stepper("+", -6, 1)
+			end
+		end
+	end
+
+	local function renderWindow()
+		winTitle.Text = "🔄 TRADE WITH " .. string.upper(partnerName)
+		mineBody.Text = offerText(mine)
+		theirBody.Text = offerText(theirs)
+		renderInventory()
+		if myLock then
+			lockBtn.BackgroundColor3 = Color3.fromRGB(200, 150, 40)
+			lockBtn.Text = "🔒 LOCKED"
+		else
+			lockBtn.BackgroundColor3 = Color3.fromRGB(60, 80, 120)
+			lockBtn.Text = "🔓 LOCK OFFER"
+		end
+		if bothLocked then
+			confirmBtn.BackgroundColor3 = Color3.fromRGB(60, 170, 90)
+			confirmBtn.AutoButtonColor = true
+			confirmBtn.Text = "✓ CONFIRM"
+		else
+			confirmBtn.BackgroundColor3 = Color3.fromRGB(40, 44, 60)
+			confirmBtn.AutoButtonColor = false
+			confirmBtn.Text = theirLock and "they're ready…" or "waiting…"
+		end
+	end
+
+	lockBtn.Activated:Connect(function()
+		Net.getEvent(Net.Events.TradeAction):FireServer({ action = "lock" })
+	end)
+	confirmBtn.Activated:Connect(function()
+		if bothLocked then
+			Net.getEvent(Net.Events.TradeAction):FireServer({ action = "confirm" })
+		end
+	end)
+	cancelBtn.Activated:Connect(function()
+		Net.getEvent(Net.Events.TradeAction):FireServer({ action = "cancel" })
+	end)
+
+	-- ---- Networking ----
+	Net.getEvent(Net.Events.CardState).OnClientEvent:Connect(function(payload: unknown)
+		owned = (payload :: { owned: { [string]: number } }).owned or {}
+		if active then
+			renderInventory()
+		end
+	end)
+
+	Net.getEvent(Net.Events.TradeInvite).OnClientEvent:Connect(function(payload: unknown)
+		local info = payload :: { fromName: string }
+		ivLbl.Text = "🔄 " .. (info.fromName or "Someone") .. " wants to trade!"
+		invite.Visible = true
+		task.delay(30, function()
+			invite.Visible = false
+		end)
+	end)
+
+	Net.getEvent(Net.Events.TradeState).OnClientEvent:Connect(function(payload: unknown)
+		local info = payload :: {
+			active: boolean,
+			partnerName: string?,
+			mine: { [string]: number }?,
+			theirs: { [string]: number }?,
+			myLock: boolean?,
+			theirLock: boolean?,
+			bothLocked: boolean?,
+		}
+		active = info.active == true
+		if not active then
+			tradeBack.Visible = false
+			return
+		end
+		partnerName = info.partnerName or "?"
+		mine = info.mine or {}
+		theirs = info.theirs or {}
+		myLock = info.myLock == true
+		theirLock = info.theirLock == true
+		bothLocked = info.bothLocked == true
+		tradeBack.Visible = true
+		pickBack.Visible = false
+		invite.Visible = false
+		renderWindow()
+	end)
+
+	Net.getEvent(Net.Events.ChoicesMode).OnClientEvent:Connect(function(payload: unknown)
+		gui.Enabled = not (payload :: { active: boolean }).active
+	end)
+	Net.getEvent(Net.Events.RoundStart).OnClientEvent:Connect(function()
+		gui.Enabled = false
+	end)
+	Net.getEvent(Net.Events.MatchOver).OnClientEvent:Connect(function()
+		gui.Enabled = true
+	end)
+end
+
 -- ===== Growth nudge: after a win / Choices finish, a small reminder to Like + Favorite (boosts
 -- Roblox discovery) and a one-tap Invite Friends button (social/viral loop). No reward is tied to
 -- liking (Roblox policy) -- it's a pure reminder. Self-throttled so it never spams. =====

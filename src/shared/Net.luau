@@ -138,6 +138,13 @@ Net.Events = {
 
 	-- Weekly tournament: the recurring competitive ladder with coin/pack payouts.
 	TournamentState = "TournamentState", -- server -> client: { points, rank, resetsAt, standings, prizes }
+
+	-- Card trading (same-server, two-sided lock + confirm). All swaps are validated + applied
+	-- atomically server-side (DataService.executeTrade) so cards can never be duped.
+	TradeInvite = "TradeInvite", -- client -> server: { targetUserId } (propose) / server -> client: { fromUserId, fromName } (incoming)
+	TradeRespond = "TradeRespond", -- client -> server: { accept: boolean }
+	TradeAction = "TradeAction", -- client -> server: { action: "offer"|"lock"|"confirm"|"cancel", id?, delta? }
+	TradeState = "TradeState", -- server -> client: { active, partnerName, mine, theirs, myLock, theirLock, phase }
 }
 
 local folder: Folder?
