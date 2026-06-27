@@ -1363,14 +1363,6 @@ function TriviaParkourService.start()
 	-- a football field as a bright backdrop behind the start
 	Assets.place(folder, Config.Models.GauntletField, CFrame.new(O.X, Y - 0.5, z0 - 90), nil)
 
-	-- start pad spanning both lanes
-	block(
-		folder,
-		Vector3.new(ROAD_W, 1, 18),
-		CFrame.new(O.X, Y + 0.05, O.Z + 9),
-		Color3.fromRGB(70, 200, 120),
-		Enum.Material.Neon
-	)
 	-- grand START GANTRY arch over the runway (its 50-stud span is along Z, so yaw 90 deg puts it
 	-- across the road). Legs land outside the road, so it's decorative (non-colliding).
 	local archT = Assets.template(Config.Models.ChoicesStartArch)
@@ -1832,8 +1824,8 @@ function TriviaParkourService.start()
 		coin.Parent = folder
 		local light = Instance.new("PointLight")
 		light.Color = coin.Color
-		light.Range = 9
-		light.Brightness = 1.4
+		light.Range = 7
+		light.Brightness = 1.1
 		light.Parent = coin
 		local aura = Instance.new("ParticleEmitter")
 		aura.Color = ColorSequence.new(Color3.fromRGB(255, 230, 140))
@@ -1844,15 +1836,23 @@ function TriviaParkourService.start()
 		aura.Size = NumberSequence.new(0.8)
 		aura.Transparency = NumberSequence.new(0.4)
 		aura.Parent = coin
+		local ding = Instance.new("Sound")
+		ding.SoundId = "rbxassetid://135483737426662"
+		ding.Volume = 0.6
+		ding.RollOffMaxDistance = 70
+		ding.Parent = coin
 		local collected: { [Player]: boolean } = {}
 		coin.Touched:Connect(function(hit: BasePart)
 			local plr = playerFromHit(hit)
-			if not plr or collected[plr] or not runState[plr] then
+			-- NOTE: no runState gate here -- the door triggers don't use one either, and in a solo run
+			-- runState may be unset; `collected` already caps it to once per player per coin.
+			if not plr or collected[plr] then
 				return
 			end
 			collected[plr] = true
 			DataService.grantReward(plr, COIN_REWARD, 0)
 			aura:Emit(24) -- a quick sparkle pop on pickup
+			ding:Play()
 		end)
 	end
 
