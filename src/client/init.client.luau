@@ -1899,6 +1899,26 @@ do
 		open = hud.openChallenge1v1,
 	})
 
+	-- Per-feature presentation: a one-line subtitle + which section it sits in. Keyed by label so the
+	-- feature do-blocks don't need to know about layout. Sections render in CAT_ORDER.
+	local CAT_ORDER = { "PLAY", "COLLECT", "SHOP" }
+	local CAT_TITLE = { PLAY = "PLAY", COLLECT = "COLLECT & EARN", SHOP = "SHOP" }
+	local META: { [string]: { desc: string, cat: string } } = {
+		["Play Modes"] = { desc = "Jump into any game mode", cat = "PLAY" },
+		["1V1"] = { desc = "Challenge a player to a duel", cat = "PLAY" },
+		["Tournament"] = { desc = "Weekly ladder — win prizes", cat = "PLAY" },
+		["Ranks"] = { desc = "Global leaderboards", cat = "PLAY" },
+		["Club"] = { desc = "Idle coin earner", cat = "COLLECT" },
+		["Cards"] = { desc = "Collect & complete the set", cat = "COLLECT" },
+		["Trade"] = { desc = "Swap cards with players", cat = "COLLECT" },
+		["Daily Deals"] = { desc = "Rotating offers — today only", cat = "SHOP" },
+		["Shop"] = { desc = "Represent your nation", cat = "SHOP" },
+		["Store"] = { desc = "Premium perks & coins", cat = "SHOP" },
+	}
+	local ACCENT = Color3.fromRGB(90, 200, 120)
+	local INK = Color3.fromRGB(232, 237, 248)
+	local MUTE = Color3.fromRGB(150, 160, 180)
+
 	local gui = Instance.new("ScreenGui")
 	gui.Name = "HudMenu"
 	gui.ResetOnSpawn = false
@@ -1906,42 +1926,94 @@ do
 	gui.DisplayOrder = 25
 	gui.Parent = pg
 
-	local function rounded(g: GuiObject, r: number)
+	local function rounded(g: GuiObject, r: number): UICorner
 		local c = Instance.new("UICorner")
 		c.CornerRadius = UDim.new(0, r)
 		c.Parent = g
+		return c
+	end
+	local function stroke(g: GuiObject, color: Color3, th: number, trans: number?): UIStroke
+		local s = Instance.new("UIStroke")
+		s.Color = color
+		s.Thickness = th
+		s.Transparency = trans or 0
+		s.Parent = g
+		return s
+	end
+	local function vGradient(g: GuiObject, top: Color3, bottom: Color3, rot: number?)
+		local grad = Instance.new("UIGradient")
+		grad.Color = ColorSequence.new(top, bottom)
+		grad.Rotation = rot or 90
+		grad.Parent = g
 	end
 
+	-- ---------- the launcher button (bottom-center) ----------
 	local btn = Instance.new("TextButton")
 	btn.AnchorPoint = Vector2.new(0.5, 1)
 	btn.Position = UDim2.new(0.5, 0, 1, -16)
-	btn.Size = UDim2.fromOffset(210, 48)
-	btn.BackgroundColor3 = Color3.fromRGB(28, 32, 46)
+	btn.Size = UDim2.fromOffset(184, 52)
+	btn.AutoButtonColor = false
+	btn.BackgroundColor3 = Color3.fromRGB(38, 44, 62)
 	btn.Font = Enum.Font.GothamBlack
 	btn.TextScaled = true
-	btn.TextColor3 = Color3.fromRGB(235, 240, 250)
-	btn.Text = "📂  MENU"
+	btn.TextColor3 = INK
+	btn.Text = ""
 	btn.Parent = gui
-	rounded(btn, 12)
-	local bstroke = Instance.new("UIStroke")
-	bstroke.Color = Color3.fromRGB(90, 200, 120)
-	bstroke.Thickness = 2
-	bstroke.Parent = btn
+	rounded(btn, 14)
+	vGradient(btn, Color3.fromRGB(48, 55, 78), Color3.fromRGB(30, 34, 50))
+	stroke(btn, ACCENT, 1.5, 0.2)
+
+	-- a crisp hamburger icon (drawn so it always renders, unlike the ☰ glyph)
+	local bars = Instance.new("Frame")
+	bars.AnchorPoint = Vector2.new(0, 0.5)
+	bars.Position = UDim2.new(0, 22, 0.5, 0)
+	bars.Size = UDim2.fromOffset(22, 16)
+	bars.BackgroundTransparency = 1
+	bars.Parent = btn
+	for i = 0, 2 do
+		local bar = Instance.new("Frame")
+		bar.Size = UDim2.fromOffset(22, 3)
+		bar.Position = UDim2.fromOffset(0, i * 7)
+		bar.BackgroundColor3 = ACCENT
+		bar.BorderSizePixel = 0
+		bar.Parent = bars
+		rounded(bar, 2)
+	end
+	local btnLbl = Instance.new("TextLabel")
+	btnLbl.AnchorPoint = Vector2.new(0, 0.5)
+	btnLbl.Position = UDim2.new(0, 54, 0.5, 0)
+	btnLbl.Size = UDim2.fromOffset(100, 22)
+	btnLbl.BackgroundTransparency = 1
+	btnLbl.Font = Enum.Font.GothamBlack
+	btnLbl.TextScaled = true
+	btnLbl.TextXAlignment = Enum.TextXAlignment.Left
+	btnLbl.TextColor3 = INK
+	btnLbl.Text = "MENU"
+	btnLbl.Parent = btn
 
 	-- attention dot
 	local dot = Instance.new("Frame")
 	dot.AnchorPoint = Vector2.new(1, 0)
-	dot.Position = UDim2.new(1, 0, 0, -2)
-	dot.Size = UDim2.fromOffset(16, 16)
+	dot.Position = UDim2.new(1, -2, 0, -2)
+	dot.Size = UDim2.fromOffset(15, 15)
 	dot.BackgroundColor3 = Color3.fromRGB(255, 80, 90)
 	dot.Visible = false
+	dot.ZIndex = 3
 	dot.Parent = btn
 	rounded(dot, 8)
+	stroke(dot, Color3.fromRGB(18, 20, 30), 2)
+	btn.MouseEnter:Connect(function()
+		TweenService:Create(btn, TweenInfo.new(0.12), { Size = UDim2.fromOffset(192, 54) }):Play()
+	end)
+	btn.MouseLeave:Connect(function()
+		TweenService:Create(btn, TweenInfo.new(0.12), { Size = UDim2.fromOffset(184, 52) }):Play()
+	end)
 
+	-- ---------- the modal ----------
 	local backdrop = Instance.new("TextButton")
 	backdrop.Size = UDim2.fromScale(1, 1)
 	backdrop.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-	backdrop.BackgroundTransparency = 0.45
+	backdrop.BackgroundTransparency = 1
 	backdrop.Text = ""
 	backdrop.AutoButtonColor = false
 	backdrop.Visible = false
@@ -1950,97 +2022,244 @@ do
 	local panel = Instance.new("Frame")
 	panel.AnchorPoint = Vector2.new(0.5, 0.5)
 	panel.Position = UDim2.fromScale(0.5, 0.5)
-	panel.Size = UDim2.fromOffset(460, 480)
-	panel.BackgroundColor3 = Color3.fromRGB(16, 20, 34)
+	panel.Size = UDim2.fromOffset(440, 540)
+	panel.BackgroundColor3 = Color3.fromRGB(20, 24, 38)
 	panel.BorderSizePixel = 0
 	panel.Parent = backdrop
-	rounded(panel, 18)
-	local ps = Instance.new("UIStroke")
-	ps.Color = Color3.fromRGB(90, 200, 120)
-	ps.Thickness = 3
-	ps.Parent = panel
+	rounded(panel, 20)
+	vGradient(panel, Color3.fromRGB(26, 31, 50), Color3.fromRGB(15, 18, 30))
+	stroke(panel, Color3.fromRGB(70, 78, 104), 1.5, 0.2)
 
-	local title = Instance.new("TextLabel")
-	title.Size = UDim2.new(1, -28, 0, 30)
-	title.Position = UDim2.fromOffset(14, 14)
-	title.BackgroundTransparency = 1
-	title.Font = Enum.Font.GothamBlack
-	title.TextScaled = true
-	title.TextColor3 = Color3.fromRGB(235, 240, 250)
-	title.Text = "📂  MENU"
-	title.Parent = panel
+	-- header
+	local header = Instance.new("Frame")
+	header.Size = UDim2.new(1, 0, 0, 76)
+	header.BackgroundTransparency = 1
+	header.Parent = panel
+	local hTitle = Instance.new("TextLabel")
+	hTitle.Position = UDim2.fromOffset(22, 16)
+	hTitle.Size = UDim2.fromOffset(240, 28)
+	hTitle.BackgroundTransparency = 1
+	hTitle.Font = Enum.Font.GothamBlack
+	hTitle.TextScaled = true
+	hTitle.TextXAlignment = Enum.TextXAlignment.Left
+	hTitle.TextColor3 = INK
+	hTitle.Text = "Menu"
+	hTitle.Parent = header
+	local hSub = Instance.new("TextLabel")
+	hSub.Position = UDim2.fromOffset(23, 46)
+	hSub.Size = UDim2.fromOffset(280, 16)
+	hSub.BackgroundTransparency = 1
+	hSub.Font = Enum.Font.GothamMedium
+	hSub.TextScaled = true
+	hSub.TextXAlignment = Enum.TextXAlignment.Left
+	hSub.TextColor3 = MUTE
+	hSub.Text = "Everything in one place"
+	hSub.Parent = header
+	-- a thin accent divider under the header
+	local divider = Instance.new("Frame")
+	divider.Position = UDim2.fromOffset(22, 74)
+	divider.Size = UDim2.new(1, -44, 0, 2)
+	divider.BackgroundColor3 = ACCENT
+	divider.BackgroundTransparency = 0.4
+	divider.BorderSizePixel = 0
+	divider.Parent = panel
+	rounded(divider, 1)
 
 	local closeBtn = Instance.new("TextButton")
 	closeBtn.AnchorPoint = Vector2.new(1, 0)
-	closeBtn.Position = UDim2.new(1, -10, 0, 12)
+	closeBtn.Position = UDim2.new(1, -14, 0, 16)
 	closeBtn.Size = UDim2.fromOffset(34, 34)
-	closeBtn.BackgroundColor3 = Color3.fromRGB(40, 44, 60)
-	closeBtn.Font = Enum.Font.GothamBlack
+	closeBtn.BackgroundColor3 = Color3.fromRGB(42, 47, 66)
+	closeBtn.Font = Enum.Font.GothamBold
 	closeBtn.TextScaled = true
-	closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+	closeBtn.TextColor3 = MUTE
 	closeBtn.Text = "✕"
 	closeBtn.Parent = panel
-	rounded(closeBtn, 8)
+	rounded(closeBtn, 17)
 
 	local scroll = Instance.new("ScrollingFrame")
-	scroll.Position = UDim2.fromOffset(14, 56)
-	scroll.Size = UDim2.new(1, -28, 1, -70)
+	scroll.Position = UDim2.fromOffset(14, 86)
+	scroll.Size = UDim2.new(1, -28, 1, -100)
 	scroll.BackgroundTransparency = 1
 	scroll.BorderSizePixel = 0
-	scroll.ScrollBarThickness = 5
+	scroll.ScrollBarThickness = 4
+	scroll.ScrollBarImageColor3 = Color3.fromRGB(90, 98, 124)
 	scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
 	scroll.CanvasSize = UDim2.new()
 	scroll.Parent = panel
-	local grid = Instance.new("UIGridLayout")
-	grid.CellSize = UDim2.fromOffset(208, 60)
-	grid.CellPadding = UDim2.fromOffset(10, 10)
-	grid.SortOrder = Enum.SortOrder.LayoutOrder
-	grid.Parent = scroll
+	local listLayout = Instance.new("UIListLayout")
+	listLayout.Padding = UDim.new(0, 8)
+	listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	listLayout.Parent = scroll
+	local listPad = Instance.new("UIPadding")
+	listPad.PaddingLeft = UDim.new(0, 4)
+	listPad.PaddingRight = UDim.new(0, 8)
+	listPad.PaddingBottom = UDim.new(0, 6)
+	listPad.Parent = scroll
+
+	-- one rich row per feature: tinted icon tile + title + subtitle + chevron/attention dot
+	local function buildCard(item: any, order: number)
+		local color = item.color or INK
+		local card = Instance.new("TextButton")
+		card.Size = UDim2.new(1, 0, 0, 62)
+		card.AutoButtonColor = false
+		card.BackgroundColor3 = Color3.fromRGB(30, 35, 53)
+		card.Text = ""
+		card.LayoutOrder = order
+		card.Parent = scroll
+		rounded(card, 14)
+		local cstroke = stroke(card, Color3.fromRGB(56, 62, 84), 1, 0.2)
+
+		local tile = Instance.new("Frame")
+		tile.Position = UDim2.fromOffset(9, 9)
+		tile.Size = UDim2.fromOffset(44, 44)
+		tile.BackgroundColor3 = color
+		tile.BackgroundTransparency = 0.8
+		tile.Parent = card
+		rounded(tile, 11)
+		stroke(tile, color, 1, 0.45)
+		local emoji = Instance.new("TextLabel")
+		emoji.Size = UDim2.fromScale(1, 1)
+		emoji.BackgroundTransparency = 1
+		emoji.Font = Enum.Font.GothamBlack
+		emoji.TextScaled = true
+		emoji.Text = item.icon
+		emoji.Parent = tile
+		local ep = Instance.new("UIPadding")
+		ep.PaddingTop = UDim.new(0, 8)
+		ep.PaddingBottom = UDim.new(0, 8)
+		ep.PaddingLeft = UDim.new(0, 8)
+		ep.PaddingRight = UDim.new(0, 8)
+		ep.Parent = emoji
+
+		local name = Instance.new("TextLabel")
+		name.Position = UDim2.fromOffset(66, 12)
+		name.Size = UDim2.new(1, -110, 0, 20)
+		name.BackgroundTransparency = 1
+		name.Font = Enum.Font.GothamBold
+		name.TextScaled = true
+		name.TextXAlignment = Enum.TextXAlignment.Left
+		name.TextColor3 = INK
+		name.Text = item.label
+		name.Parent = card
+		local sub = Instance.new("TextLabel")
+		sub.Position = UDim2.fromOffset(66, 33)
+		sub.Size = UDim2.new(1, -110, 0, 16)
+		sub.BackgroundTransparency = 1
+		sub.Font = Enum.Font.GothamMedium
+		sub.TextScaled = true
+		sub.TextXAlignment = Enum.TextXAlignment.Left
+		sub.TextColor3 = MUTE
+		sub.Text = (META[item.label] and META[item.label].desc) or ""
+		sub.Parent = card
+
+		if item.attentionKey and hudMenu.attention[item.attentionKey] then
+			local d = Instance.new("Frame")
+			d.AnchorPoint = Vector2.new(1, 0.5)
+			d.Position = UDim2.new(1, -18, 0.5, 0)
+			d.Size = UDim2.fromOffset(12, 12)
+			d.BackgroundColor3 = Color3.fromRGB(255, 80, 90)
+			d.Parent = card
+			rounded(d, 6)
+		else
+			local chev = Instance.new("TextLabel")
+			chev.AnchorPoint = Vector2.new(1, 0.5)
+			chev.Position = UDim2.new(1, -16, 0.5, 0)
+			chev.Size = UDim2.fromOffset(16, 26)
+			chev.BackgroundTransparency = 1
+			chev.Font = Enum.Font.GothamBold
+			chev.TextScaled = true
+			chev.TextColor3 = Color3.fromRGB(110, 118, 142)
+			chev.Text = "›"
+			chev.Parent = card
+		end
+
+		card.MouseEnter:Connect(function()
+			TweenService:Create(card, TweenInfo.new(0.12), {
+				BackgroundColor3 = Color3.fromRGB(40, 46, 68),
+			}):Play()
+			TweenService:Create(cstroke, TweenInfo.new(0.12), { Color = color, Transparency = 0 })
+				:Play()
+		end)
+		card.MouseLeave:Connect(function()
+			TweenService:Create(card, TweenInfo.new(0.12), {
+				BackgroundColor3 = Color3.fromRGB(30, 35, 53),
+			}):Play()
+			TweenService:Create(cstroke, TweenInfo.new(0.12), {
+				Color = Color3.fromRGB(56, 62, 84),
+				Transparency = 0.2,
+			}):Play()
+		end)
+		card.Activated:Connect(function()
+			backdrop.Visible = false
+			if item.open then
+				item.open()
+			end
+		end)
+	end
+
+	local function sectionHeader(text: string, order: number)
+		local h = Instance.new("Frame")
+		h.Size = UDim2.new(1, 0, 0, 24)
+		h.BackgroundTransparency = 1
+		h.LayoutOrder = order
+		h.Parent = scroll
+		local l = Instance.new("TextLabel")
+		l.AnchorPoint = Vector2.new(0, 1)
+		l.Position = UDim2.new(0, 6, 1, -2)
+		l.Size = UDim2.new(1, -6, 0, 16)
+		l.BackgroundTransparency = 1
+		l.Font = Enum.Font.GothamBold
+		l.TextScaled = true
+		l.TextXAlignment = Enum.TextXAlignment.Left
+		l.TextColor3 = Color3.fromRGB(120, 128, 150)
+		l.Text = text
+		l.Parent = h
+	end
 
 	local function render()
 		for _, c in scroll:GetChildren() do
-			if c:IsA("TextButton") then
+			if c:IsA("GuiObject") then
 				c:Destroy()
 			end
 		end
-		for i, item in hudMenu.items do
-			local cell = Instance.new("TextButton")
-			cell.Size = UDim2.fromOffset(208, 60)
-			cell.BackgroundColor3 = Color3.fromRGB(26, 30, 44)
-			cell.Font = Enum.Font.GothamBlack
-			cell.TextScaled = true
-			cell.TextXAlignment = Enum.TextXAlignment.Left
-			cell.TextColor3 = item.color or Color3.fromRGB(235, 240, 250)
-			cell.Text = string.format("  %s  %s", item.icon, item.label)
-			cell.LayoutOrder = i
-			cell.Parent = scroll
-			rounded(cell, 12)
-			local cs = Instance.new("UIStroke")
-			cs.Color = item.color or Color3.fromRGB(60, 64, 80)
-			cs.Thickness = 1
-			cs.Transparency = 0.4
-			cs.Parent = cell
-			if item.attentionKey and hudMenu.attention[item.attentionKey] then
-				local d = Instance.new("Frame")
-				d.AnchorPoint = Vector2.new(1, 0.5)
-				d.Position = UDim2.new(1, -12, 0.5, 0)
-				d.Size = UDim2.fromOffset(14, 14)
-				d.BackgroundColor3 = Color3.fromRGB(255, 80, 90)
-				d.Parent = cell
-				rounded(d, 7)
-			end
-			cell.Activated:Connect(function()
-				backdrop.Visible = false
-				if item.open then
-					item.open()
+		local order = 0
+		for _, cat in CAT_ORDER do
+			local first = true
+			for _, item in hudMenu.items do
+				local meta = META[item.label]
+				if meta and meta.cat == cat then
+					if first then
+						order += 1
+						sectionHeader(CAT_TITLE[cat] or cat, order)
+						first = false
+					end
+					order += 1
+					buildCard(item, order)
 				end
-			end)
+			end
 		end
 	end
 
 	hudMenu.open = function()
 		render()
+		backdrop.BackgroundTransparency = 1
 		backdrop.Visible = true
+		panel.Size = UDim2.fromOffset(440, 540)
+		TweenService:Create(backdrop, TweenInfo.new(0.18), { BackgroundTransparency = 0.5 }):Play()
+		panel.Position = UDim2.fromScale(0.5, 0.52)
+		local pop = TweenService:Create(
+			panel,
+			TweenInfo.new(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+			{ Position = UDim2.fromScale(0.5, 0.5) }
+		)
+		pop:Play()
+	end
+	local function close()
+		TweenService:Create(backdrop, TweenInfo.new(0.15), { BackgroundTransparency = 1 }):Play()
+		task.delay(0.15, function()
+			backdrop.Visible = false
+		end)
 	end
 	hudMenu.refresh = function()
 		local any = false
@@ -2057,11 +2276,15 @@ do
 	end
 
 	btn.Activated:Connect(hudMenu.open)
-	backdrop.Activated:Connect(function()
-		backdrop.Visible = false
+	backdrop.Activated:Connect(close)
+	closeBtn.Activated:Connect(close)
+	closeBtn.MouseEnter:Connect(function()
+		closeBtn.BackgroundColor3 = Color3.fromRGB(72, 60, 70)
+		closeBtn.TextColor3 = Color3.fromRGB(255, 150, 160)
 	end)
-	closeBtn.Activated:Connect(function()
-		backdrop.Visible = false
+	closeBtn.MouseLeave:Connect(function()
+		closeBtn.BackgroundColor3 = Color3.fromRGB(42, 47, 66)
+		closeBtn.TextColor3 = Color3.fromRGB(150, 160, 180)
 	end)
 
 	Net.getEvent(Net.Events.ChoicesMode).OnClientEvent:Connect(function(payload: unknown)
