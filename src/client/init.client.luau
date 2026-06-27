@@ -2616,6 +2616,263 @@ do
 	end)
 end
 
+-- ===== Weekly tournament: a 🏆 RANKED button opens the live ladder -- your points + rank, the top
+-- 10, the prize ladder, and a countdown to the weekly reset. Top finishers are paid coins/packs. ==
+do
+	type Row = { name: string, value: number }
+	type Prize = { rank: number, coins: number, packs: number }
+	local pg = player:WaitForChild("PlayerGui")
+	local resetsAt = 0
+	local myPoints = 0
+	local myRank = 0
+	local standings: { Row } = {}
+	local prizes: { Prize } = {}
+	local medals = { "🥇", "🥈", "🥉" }
+
+	local function rounded(g: GuiObject, r: number)
+		local c = Instance.new("UICorner")
+		c.CornerRadius = UDim.new(0, r)
+		c.Parent = g
+	end
+
+	local gui = Instance.new("ScreenGui")
+	gui.Name = "Tournament"
+	gui.ResetOnSpawn = false
+	gui.IgnoreGuiInset = true
+	gui.DisplayOrder = 24
+	gui.Parent = pg
+
+	local btn = Instance.new("TextButton")
+	btn.AnchorPoint = Vector2.new(1, 0)
+	btn.Position = UDim2.new(1, -12, 0, 306)
+	btn.Size = UDim2.fromOffset(140, 42)
+	btn.BackgroundColor3 = Color3.fromRGB(22, 24, 34)
+	btn.BackgroundTransparency = 0.1
+	btn.Font = Enum.Font.GothamBlack
+	btn.TextScaled = true
+	btn.TextColor3 = Color3.fromRGB(255, 215, 120)
+	btn.Text = "🏆 RANKED"
+	btn.Parent = gui
+	rounded(btn, 10)
+
+	local backdrop = Instance.new("TextButton")
+	backdrop.Size = UDim2.fromScale(1, 1)
+	backdrop.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+	backdrop.BackgroundTransparency = 0.45
+	backdrop.Text = ""
+	backdrop.AutoButtonColor = false
+	backdrop.Visible = false
+	backdrop.Parent = gui
+
+	local panel = Instance.new("Frame")
+	panel.AnchorPoint = Vector2.new(0.5, 0.5)
+	panel.Position = UDim2.fromScale(0.5, 0.5)
+	panel.Size = UDim2.fromOffset(440, 540)
+	panel.BackgroundColor3 = Color3.fromRGB(16, 20, 34)
+	panel.BorderSizePixel = 0
+	panel.Parent = backdrop
+	rounded(panel, 18)
+	local ps = Instance.new("UIStroke")
+	ps.Color = Color3.fromRGB(255, 215, 120)
+	ps.Thickness = 3
+	ps.Parent = panel
+
+	local titleLbl = Instance.new("TextLabel")
+	titleLbl.Size = UDim2.new(1, -28, 0, 28)
+	titleLbl.Position = UDim2.fromOffset(14, 12)
+	titleLbl.BackgroundTransparency = 1
+	titleLbl.Font = Enum.Font.GothamBlack
+	titleLbl.TextScaled = true
+	titleLbl.TextColor3 = Color3.fromRGB(255, 215, 120)
+	titleLbl.Text = "🏆 WEEKLY TOURNAMENT"
+	titleLbl.Parent = panel
+
+	local timerLbl = Instance.new("TextLabel")
+	timerLbl.Size = UDim2.new(1, -28, 0, 18)
+	timerLbl.Position = UDim2.fromOffset(14, 42)
+	timerLbl.BackgroundTransparency = 1
+	timerLbl.Font = Enum.Font.GothamBold
+	timerLbl.TextScaled = true
+	timerLbl.TextColor3 = Color3.fromRGB(255, 150, 150)
+	timerLbl.Text = ""
+	timerLbl.Parent = panel
+
+	local youLbl = Instance.new("TextLabel")
+	youLbl.Size = UDim2.new(1, -28, 0, 32)
+	youLbl.Position = UDim2.fromOffset(14, 66)
+	youLbl.BackgroundColor3 = Color3.fromRGB(30, 36, 54)
+	youLbl.Font = Enum.Font.GothamBlack
+	youLbl.TextScaled = true
+	youLbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+	youLbl.Text = ""
+	youLbl.Parent = panel
+	rounded(youLbl, 8)
+
+	local closeBtn = Instance.new("TextButton")
+	closeBtn.AnchorPoint = Vector2.new(1, 0)
+	closeBtn.Position = UDim2.new(1, -10, 0, 10)
+	closeBtn.Size = UDim2.fromOffset(34, 34)
+	closeBtn.BackgroundColor3 = Color3.fromRGB(40, 44, 60)
+	closeBtn.Font = Enum.Font.GothamBlack
+	closeBtn.TextScaled = true
+	closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+	closeBtn.Text = "✕"
+	closeBtn.Parent = panel
+	rounded(closeBtn, 8)
+
+	local scroll = Instance.new("ScrollingFrame")
+	scroll.Position = UDim2.fromOffset(14, 108)
+	scroll.Size = UDim2.new(1, -28, 1, -122)
+	scroll.BackgroundTransparency = 1
+	scroll.BorderSizePixel = 0
+	scroll.ScrollBarThickness = 5
+	scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	scroll.CanvasSize = UDim2.new()
+	scroll.Parent = panel
+	local vlist = Instance.new("UIListLayout")
+	vlist.Padding = UDim.new(0, 6)
+	vlist.SortOrder = Enum.SortOrder.LayoutOrder
+	vlist.Parent = scroll
+
+	local function render()
+		for _, c in scroll:GetChildren() do
+			if c:IsA("Frame") then
+				c:Destroy()
+			end
+		end
+		if myRank > 0 then
+			youLbl.Text = string.format("YOU: #%d  ·  %d pts", myRank, myPoints)
+		else
+			youLbl.Text = string.format("YOU: unranked  ·  %d pts — keep playing!", myPoints)
+		end
+		-- One row per top-N entry, with the prize for that rank if any.
+		local count = math.max(#standings, #prizes)
+		for i = 1, count do
+			local row = standings[i]
+			local prize = prizes[i]
+			local frame = Instance.new("Frame")
+			frame.Size = UDim2.new(1, 0, 0, 40)
+			frame.BackgroundColor3 = Color3.fromRGB(26, 30, 44)
+			frame.LayoutOrder = i
+			frame.Parent = scroll
+			rounded(frame, 8)
+			if myRank == i then
+				local hs = Instance.new("UIStroke")
+				hs.Color = Color3.fromRGB(255, 215, 120)
+				hs.Thickness = 2
+				hs.Parent = frame
+			end
+
+			local rankLbl = Instance.new("TextLabel")
+			rankLbl.Position = UDim2.fromOffset(8, 0)
+			rankLbl.Size = UDim2.fromOffset(44, 40)
+			rankLbl.BackgroundTransparency = 1
+			rankLbl.Font = Enum.Font.GothamBlack
+			rankLbl.TextScaled = true
+			rankLbl.TextColor3 = Color3.fromRGB(255, 215, 120)
+			rankLbl.Text = medals[i] or ("#" .. i)
+			rankLbl.Parent = frame
+
+			local nameLbl = Instance.new("TextLabel")
+			nameLbl.Position = UDim2.fromOffset(56, 0)
+			nameLbl.Size = UDim2.new(1, -210, 1, 0)
+			nameLbl.BackgroundTransparency = 1
+			nameLbl.Font = Enum.Font.GothamBold
+			nameLbl.TextScaled = true
+			nameLbl.TextXAlignment = Enum.TextXAlignment.Left
+			nameLbl.TextColor3 = Color3.fromRGB(235, 240, 250)
+			nameLbl.Text = if row then row.name else "—"
+			nameLbl.Parent = frame
+
+			local ptsLbl = Instance.new("TextLabel")
+			ptsLbl.AnchorPoint = Vector2.new(1, 0)
+			ptsLbl.Position = UDim2.new(1, -110, 0, 0)
+			ptsLbl.Size = UDim2.fromOffset(90, 40)
+			ptsLbl.BackgroundTransparency = 1
+			ptsLbl.Font = Enum.Font.GothamBold
+			ptsLbl.TextScaled = true
+			ptsLbl.TextXAlignment = Enum.TextXAlignment.Right
+			ptsLbl.TextColor3 = Color3.fromRGB(180, 188, 205)
+			ptsLbl.Text = if row then string.format("%d", row.value) else ""
+			ptsLbl.Parent = frame
+
+			if prize then
+				local prizeLbl = Instance.new("TextLabel")
+				prizeLbl.AnchorPoint = Vector2.new(1, 0.5)
+				prizeLbl.Position = UDim2.new(1, -8, 0.5, 0)
+				prizeLbl.Size = UDim2.fromOffset(98, 34)
+				prizeLbl.BackgroundColor3 = Color3.fromRGB(40, 44, 60)
+				prizeLbl.Font = Enum.Font.GothamBlack
+				prizeLbl.TextScaled = true
+				prizeLbl.TextColor3 = Color3.fromRGB(140, 230, 170)
+				local packTxt = if prize.packs > 0 then "+" .. prize.packs .. "🃏" else ""
+				prizeLbl.Text = string.format("🪙%d %s", prize.coins, packTxt)
+				prizeLbl.Parent = frame
+				rounded(prizeLbl, 6)
+			end
+		end
+	end
+
+	local function fmt(sec: number): string
+		sec = math.max(0, math.floor(sec))
+		local d = math.floor(sec / 86400)
+		local h = math.floor((sec % 86400) / 3600)
+		local m = math.floor((sec % 3600) / 60)
+		if d > 0 then
+			return string.format("⏳ Resets in %dd %dh", d, h)
+		end
+		return string.format("⏳ Resets in %dh %02dm", h, m)
+	end
+
+	Net.getEvent(Net.Events.TournamentState).OnClientEvent:Connect(function(payload: unknown)
+		local info = payload :: {
+			points: number,
+			rank: number,
+			resetsAt: number,
+			standings: { Row },
+			prizes: { Prize },
+		}
+		myPoints = info.points or 0
+		myRank = info.rank or 0
+		resetsAt = info.resetsAt or 0
+		standings = info.standings or {}
+		prizes = info.prizes or {}
+		if backdrop.Visible then
+			render()
+		end
+	end)
+
+	task.spawn(function()
+		while true do
+			if resetsAt > 0 then
+				timerLbl.Text = fmt(resetsAt - os.time())
+			end
+			task.wait(30)
+		end
+	end)
+
+	btn.Activated:Connect(function()
+		render()
+		backdrop.Visible = true
+	end)
+	backdrop.Activated:Connect(function()
+		backdrop.Visible = false
+	end)
+	closeBtn.Activated:Connect(function()
+		backdrop.Visible = false
+	end)
+
+	Net.getEvent(Net.Events.ChoicesMode).OnClientEvent:Connect(function(payload: unknown)
+		gui.Enabled = not (payload :: { active: boolean }).active
+	end)
+	Net.getEvent(Net.Events.RoundStart).OnClientEvent:Connect(function()
+		gui.Enabled = false
+	end)
+	Net.getEvent(Net.Events.MatchOver).OnClientEvent:Connect(function()
+		gui.Enabled = true
+	end)
+end
+
 -- ===== Growth nudge: after a win / Choices finish, a small reminder to Like + Favorite (boosts
 -- Roblox discovery) and a one-tap Invite Friends button (social/viral loop). No reward is tied to
 -- liking (Roblox policy) -- it's a pure reminder. Self-throttled so it never spams. =====

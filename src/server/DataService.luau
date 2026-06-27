@@ -18,6 +18,7 @@ local SeasonPass = require(Shared:WaitForChild("SeasonPass"))
 local CardBank = require(Shared:WaitForChild("CardBank"))
 local LiveEvents = require(Shared:WaitForChild("LiveEvents"))
 local DailyDeals = require(Shared:WaitForChild("DailyDeals"))
+local Tournament = require(Shared:WaitForChild("Tournament"))
 
 local ProfileStore = require(script.Parent:WaitForChild("ProfileStore"))
 local BadgeService = require(script.Parent:WaitForChild("BadgeService"))
@@ -63,6 +64,9 @@ local PROFILE_TEMPLATE: Types.ProfileData = {
 	CardSetClaimed = false, -- one-time "completed the set" bonus paid?
 	StoreDay = 0, -- day index the StoreBought set belongs to (resets the list each UTC day)
 	StoreBought = {}, -- set of daily-deal ids already purchased today
+	TournPoints = 0, -- weekly tournament points (= XP earned this week)
+	TournWeek = 0, -- week index TournPoints belongs to (resets the total each week)
+	TournClaimedWeek = 0, -- last week index whose rank prize was paid (anti double-pay)
 }
 
 -- Systems that need a player's profile (e.g. cosmetics applying the equipped
@@ -166,6 +170,19 @@ end
 
 local function notify(player: Player, message: string)
 	Net.getEvent(Net.Events.Notify):FireClient(player, { message = message })
+end
+
+-- Weekly tournament: roll the point total over to a fresh week if the week changed, then add `n`
+-- points (= XP earned). Called from every XP-granting path so all modes feed the competition.
+local function bumpTourn(data: any, n: number)
+	local week = Tournament.weekId()
+	if data.TournWeek ~= week then
+		data.TournWeek = week
+		data.TournPoints = 0
+	end
+	if n > 0 then
+		data.TournPoints += n
+	end
 end
 
 local function updateLeaderstats(player: Player)
@@ -379,6 +396,7 @@ function DataService.applyMatchResult(
 		matchXp *= 2
 	end
 	data.XP += matchXp
+	bumpTourn(data, matchXp)
 
 	-- Daily-quest progress: bump each counter, paying out the first time it
 	-- crosses its target (counters reset each day in evaluateDaily).
@@ -555,7 +573,9 @@ function DataService.grantReward(player: Player, coins: number, xp: number)
 		xpMult *= 2 -- active 2× XP boost (e.g. from a Daily Deal / treat)
 	end
 	data.Coins += math.floor(math.max(coins, 0) * ev.coinMult)
-	data.XP += math.floor(math.max(xp, 0) * xpMult)
+	local xpGain = math.floor(math.max(xp, 0) * xpMult)
+	data.XP += xpGain
+	bumpTourn(data, xpGain)
 	local afterLevel = Progression.levelFromXp(data.XP)
 	if afterLevel > beforeLevel then
 		notify(player, string.format("⬆️ Level %d!", afterLevel))
@@ -744,6 +764,44 @@ function DataService.buyDeal(player: Player, id: string): (boolean, string)
 	updateLeaderstats(player)
 	pushToClient(player)
 	return true, string.format("%s %s purchased!", deal.emoji, deal.label)
+end
+
+-- Weekly tournament: the player's current point total (rolled to this week). Used by
+-- TournamentService to publish them to the week's OrderedDataStore and show their live rank.
+function DataService.tournPoints(player: Player): number?
+	local profile = profiles[player]
+	if not profile or not profile:IsActive() then
+		return nil
+	end
+	bumpTourn(profile.Data, 0) -- roll the week over if needed
+	pushToClient(player)
+	return profile.Data.TournPoints
+end
+
+-- Pay a previous week's rank prize exactly once. Gated by TournClaimedWeek (and ProfileStore's
+-- session lock), so even across rejoins/servers a prize is never paid twice. Returns true if paid.
+function DataService.payTournament(
+	player: Player,
+	week: number,
+	coins: number,
+	packs: number
+): boolean
+	local profile = profiles[player]
+	if not profile or not profile:IsActive() then
+		return false
+	end
+	local data = profile.Data
+	if data.TournClaimedWeek >= week then
+		return false -- already paid for this (or a later) week
+	end
+	data.TournClaimedWeek = week
+	data.Coins += coins
+	if packs > 0 then
+		data.CardPacks += packs
+	end
+	updateLeaderstats(player)
+	pushToClient(player)
+	return true
 end
 
 -- Snapshot for the client card collection panel.

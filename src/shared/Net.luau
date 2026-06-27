@@ -135,6 +135,9 @@ Net.Events = {
 	-- Daily Deals store: a rotating coin store (FOMO -- "today only").
 	StoreState = "StoreState", -- server -> client: { coins, bought, resetsAt, deals }
 	StoreBuy = "StoreBuy", -- client -> server: { id: string }
+
+	-- Weekly tournament: the recurring competitive ladder with coin/pack payouts.
+	TournamentState = "TournamentState", -- server -> client: { points, rank, resetsAt, standings, prizes }
 }
 
 local folder: Folder?
