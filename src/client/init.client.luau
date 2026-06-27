@@ -163,6 +163,20 @@ local function backPill(parent: GuiObject, onBack: () -> ()): TextButton
 	b.Activated:Connect(onBack)
 	return b
 end
+-- A thin accent rule under a panel header (the same header→line→content rhythm the MENU uses),
+-- at vertical offset `y`. Purely additive — gives every feature panel a consistent header.
+local function headerRule(panel: GuiObject, accent: Color3, y: number)
+	local d = Instance.new("Frame")
+	d.Position = UDim2.fromOffset(16, y)
+	d.Size = UDim2.new(1, -32, 0, 2)
+	d.BackgroundColor3 = accent
+	d.BackgroundTransparency = 0.45
+	d.BorderSizePixel = 0
+	d.Parent = panel
+	local c = Instance.new("UICorner")
+	c.CornerRadius = UDim.new(1, 0)
+	c.Parent = d
+end
 
 -- ===== Lobby-HUD visibility: the floating banners (live event, daily objective) are lobby-only
 -- info. They hide whenever the player is in a run OR has a menu/panel open, so they never overlap a
@@ -2414,6 +2428,7 @@ do
 	ps.Thickness = 3
 	ps.Parent = panel
 	dressPanel(panel)
+	headerRule(panel, Color3.fromRGB(255, 235, 150), 44)
 
 	local function mk(
 		y: number,
@@ -2588,6 +2603,7 @@ do
 	titleLbl.TextColor3 = Color3.fromRGB(255, 235, 150)
 	titleLbl.Text = "🃏 MY CARDS"
 	titleLbl.Parent = panel
+	headerRule(panel, Color3.fromRGB(255, 235, 150), 46)
 
 	local scroll = Instance.new("ScrollingFrame")
 	scroll.Position = UDim2.fromOffset(14, 52)
@@ -2877,6 +2893,7 @@ do
 	titleLbl.TextXAlignment = Enum.TextXAlignment.Left
 	titleLbl.TextColor3 = Color3.fromRGB(140, 230, 170)
 	titleLbl.Text = "🛒 DAILY DEALS"
+	headerRule(panel, Color3.fromRGB(140, 230, 170), 70)
 	titleLbl.Parent = panel
 
 	local timerLbl = Instance.new("TextLabel")
@@ -3119,6 +3136,7 @@ do
 	titleLbl.TextColor3 = Color3.fromRGB(255, 215, 120)
 	titleLbl.Text = "🏆 TOURNAMENT"
 	titleLbl.Parent = panel
+	headerRule(panel, Color3.fromRGB(255, 215, 120), 100)
 
 	local timerLbl = Instance.new("TextLabel")
 	timerLbl.Size = UDim2.new(1, -28, 0, 18)
@@ -3351,6 +3369,7 @@ do
 	pkStroke.Thickness = 3
 	pkStroke.Parent = pickPanel
 	dressPanel(pickPanel)
+	headerRule(pickPanel, Color3.fromRGB(150, 200, 255), 44)
 	backPill(pickPanel, function()
 		pickBack.Visible = false
 		hudMenu.open()
