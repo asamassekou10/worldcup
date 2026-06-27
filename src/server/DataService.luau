@@ -19,6 +19,7 @@ local CardBank = require(Shared:WaitForChild("CardBank"))
 local LiveEvents = require(Shared:WaitForChild("LiveEvents"))
 local DailyDeals = require(Shared:WaitForChild("DailyDeals"))
 local Tournament = require(Shared:WaitForChild("Tournament"))
+local DailyObjective = require(Shared:WaitForChild("DailyObjective"))
 
 local ProfileStore = require(script.Parent:WaitForChild("ProfileStore"))
 local BadgeService = require(script.Parent:WaitForChild("BadgeService"))
@@ -67,6 +68,10 @@ local PROFILE_TEMPLATE: Types.ProfileData = {
 	TournPoints = 0, -- weekly tournament points (= XP earned this week)
 	TournWeek = 0, -- week index TournPoints belongs to (resets the total each week)
 	TournClaimedWeek = 0, -- last week index whose rank prize was paid (anti double-pay)
+	DailyObjDay = 0, -- day index the daily-objective progress belongs to (resets each UTC day)
+	DailyObjProgress = 0, -- progress toward today's single big objective
+	DailyObjDone = false, -- today's objective reward already paid?
+	RookieDone = {}, -- FTUE: set of completed rookie-reward step keys (gift/pack/mode)
 }
 
 -- Systems that need a player's profile (e.g. cosmetics applying the equipped
@@ -183,6 +188,49 @@ local function bumpTourn(data: any, n: number)
 	if n > 0 then
 		data.TournPoints += n
 	end
+end
+
+-- Daily objective: roll progress over to a fresh day if the day changed, then -- if `kind` matches
+-- today's objective -- add progress and pay the reward the first time it's hit. Returns true if the
+-- objective was JUST completed (so the caller can celebrate). `n == 0` just performs the roll.
+local function bumpDaily(player: Player, data: any, kind: string, n: number): boolean
+	local day = Progression.dayIndex()
+	if data.DailyObjDay ~= day then
+		data.DailyObjDay = day
+		data.DailyObjProgress = 0
+		data.DailyObjDone = false
+	end
+	local obj = DailyObjective.today()
+	if n <= 0 or data.DailyObjDone or obj.kind ~= kind then
+		return false
+	end
+	data.DailyObjProgress += n
+	local justDone = false
+	if data.DailyObjProgress >= obj.target then
+		data.DailyObjDone = true
+		data.Coins += obj.coins
+		data.CardPacks += obj.packs
+		justDone = true
+		Net.getEvent(Net.Events.Notify):FireClient(player, {
+			message = string.format(
+				"%s Daily Objective complete! +%d coins +%d pack",
+				obj.emoji,
+				obj.coins,
+				obj.packs
+			),
+		})
+	end
+	-- Push the live progress to the banner.
+	Net.getEvent(Net.Events.DailyObjectiveState):FireClient(player, {
+		label = DailyObjective.text(obj),
+		emoji = obj.emoji,
+		progress = math.min(data.DailyObjProgress, obj.target),
+		target = obj.target,
+		done = data.DailyObjDone,
+		coins = obj.coins,
+		packs = obj.packs,
+	})
+	return justDone
 end
 
 local function updateLeaderstats(player: Player)
@@ -397,6 +445,8 @@ function DataService.applyMatchResult(
 	end
 	data.XP += matchXp
 	bumpTourn(data, matchXp)
+	bumpDaily(player, data, "xp", matchXp)
+	bumpDaily(player, data, "goals", goals)
 
 	-- Daily-quest progress: bump each counter, paying out the first time it
 	-- crosses its target (counters reset each day in evaluateDaily).
@@ -576,6 +626,7 @@ function DataService.grantReward(player: Player, coins: number, xp: number)
 	local xpGain = math.floor(math.max(xp, 0) * xpMult)
 	data.XP += xpGain
 	bumpTourn(data, xpGain)
+	bumpDaily(player, data, "xp", xpGain)
 	local afterLevel = Progression.levelFromXp(data.XP)
 	if afterLevel > beforeLevel then
 		notify(player, string.format("⬆️ Level %d!", afterLevel))
@@ -804,6 +855,91 @@ function DataService.payTournament(
 	return true
 end
 
+-- Snapshot for the client daily-objective banner (rolls the day over first so progress is correct).
+function DataService.dailyObjectiveInfo(player: Player): { [string]: any }?
+	local profile = profiles[player]
+	if not profile or not profile:IsActive() then
+		return nil
+	end
+	bumpDaily(player, profile.Data, "", 0) -- roll the day over if needed
+	local obj = DailyObjective.today()
+	return {
+		label = DailyObjective.text(obj),
+		emoji = obj.emoji,
+		progress = math.min(profile.Data.DailyObjProgress, obj.target),
+		target = obj.target,
+		done = profile.Data.DailyObjDone,
+		coins = obj.coins,
+		packs = obj.packs,
+	}
+end
+
+-- ===== FTUE "Rookie Rewards": a sub-60s first-session reward path. The gift step is an instant tap;
+-- the pack/mode steps complete the first time the player opens a pack / jumps to a mode. Finishing
+-- all three marks HasOnboarded and pays a bonus. Each step pays exactly once. =====
+local ROOKIE_STEPS = { "gift", "pack", "mode" }
+local ROOKIE_REWARDS: { [string]: { coins: number, packs: number, boost: number, msg: string } } = {
+	gift = {
+		coins = 300,
+		packs = 2,
+		boost = 1800,
+		msg = "🎁 Welcome gift! +300 coins, 2 packs & 2× XP",
+	},
+	pack = { coins = 150, packs = 0, boost = 0, msg = "🃏 First pack opened! +150 coins" },
+	mode = { coins = 150, packs = 0, boost = 0, msg = "🎮 Nice — you found a mode! +150 coins" },
+}
+local ROOKIE_COMPLETE_BONUS = 250
+
+function DataService.rookieInfo(player: Player): { [string]: any }?
+	local profile = profiles[player]
+	if not profile or not profile:IsActive() then
+		return nil
+	end
+	return { done = profile.Data.RookieDone, complete = profile.Data.HasOnboarded }
+end
+
+-- Complete one rookie step. Returns (granted, complete) -- granted only the first time the step is
+-- earned; complete is true once all steps are done (HasOnboarded set + bonus paid).
+function DataService.claimRookieStep(player: Player, step: string): (boolean, boolean)
+	local profile = profiles[player]
+	if not profile or not profile:IsActive() then
+		return false, false
+	end
+	local data = profile.Data
+	if data.HasOnboarded then
+		return false, true -- already a veteran; nothing to claim
+	end
+	local reward = ROOKIE_REWARDS[step]
+	if not reward or data.RookieDone[step] then
+		return false, false
+	end
+	data.RookieDone[step] = true
+	data.Coins += reward.coins
+	if reward.packs > 0 then
+		data.CardPacks += reward.packs
+	end
+	if reward.boost > 0 then
+		data.XpBoostExpiry = math.max(data.XpBoostExpiry, os.time()) + reward.boost
+	end
+	notify(player, reward.msg)
+
+	local allDone = true
+	for _, s in ROOKIE_STEPS do
+		if not data.RookieDone[s] then
+			allDone = false
+			break
+		end
+	end
+	if allDone then
+		data.HasOnboarded = true
+		data.Coins += ROOKIE_COMPLETE_BONUS
+		notify(player, string.format("⭐ Rookie complete! +%d bonus coins", ROOKIE_COMPLETE_BONUS))
+	end
+	updateLeaderstats(player)
+	pushToClient(player)
+	return true, data.HasOnboarded
+end
+
 -- Snapshot for the client card collection panel.
 function DataService.cardInfo(player: Player): { [string]: any }?
 	local profile = profiles[player]
@@ -920,6 +1056,7 @@ function DataService.openPack(
 		data.CardsOwned[id] = (data.CardsOwned[id] or 0) + 1
 		table.insert(rolled, id)
 	end
+	bumpDaily(player, data, "packs", 1)
 	-- one-time "completed the collection" jackpot
 	if not data.CardSetClaimed then
 		local distinct = 0

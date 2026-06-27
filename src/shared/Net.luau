@@ -145,6 +145,13 @@ Net.Events = {
 	TradeRespond = "TradeRespond", -- client -> server: { accept: boolean }
 	TradeAction = "TradeAction", -- client -> server: { action: "offer"|"lock"|"confirm"|"cancel", id?, delta? }
 	TradeState = "TradeState", -- server -> client: { active, partnerName, mine, theirs, myLock, theirLock, phase }
+
+	-- Daily objective: one big session-spanning goal per day (progress + reward banner).
+	DailyObjectiveState = "DailyObjectiveState", -- server -> client: { label, emoji, progress, target, done, coins, packs }
+
+	-- FTUE "Rookie Rewards": a sub-60s first-session reward path.
+	WelcomeState = "WelcomeState", -- server -> client: { done: {[step]=true}, complete }
+	WelcomeClaim = "WelcomeClaim", -- client -> server: { step: "gift" } (instant-claim steps)
 }
 
 local folder: Folder?

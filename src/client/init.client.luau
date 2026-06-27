@@ -3334,6 +3334,276 @@ do
 	end)
 end
 
+-- ===== Daily objective banner: one big session-spanning goal per day with a progress bar (top
+-- center, under the live-event banner). Auto-hides a few seconds after it's completed. =====
+do
+	local pg = player:WaitForChild("PlayerGui")
+
+	local gui = Instance.new("ScreenGui")
+	gui.Name = "DailyObjective"
+	gui.ResetOnSpawn = false
+	gui.IgnoreGuiInset = true
+	gui.DisplayOrder = 23
+	gui.Parent = pg
+
+	local frame = Instance.new("Frame")
+	frame.AnchorPoint = Vector2.new(0.5, 0)
+	frame.Position = UDim2.new(0.5, 0, 0, 192)
+	frame.Size = UDim2.fromOffset(380, 46)
+	frame.BackgroundColor3 = Color3.fromRGB(16, 20, 32)
+	frame.BackgroundTransparency = 0.1
+	frame.Visible = false
+	frame.Parent = gui
+	local fc = Instance.new("UICorner")
+	fc.CornerRadius = UDim.new(0, 12)
+	fc.Parent = frame
+	local fs = Instance.new("UIStroke")
+	fs.Color = Color3.fromRGB(120, 200, 255)
+	fs.Thickness = 2
+	fs.Parent = frame
+
+	local label = Instance.new("TextLabel")
+	label.Position = UDim2.fromOffset(10, 4)
+	label.Size = UDim2.new(1, -20, 0, 20)
+	label.BackgroundTransparency = 1
+	label.Font = Enum.Font.GothamBlack
+	label.TextScaled = true
+	label.TextXAlignment = Enum.TextXAlignment.Left
+	label.TextColor3 = Color3.fromRGB(235, 240, 250)
+	label.Text = ""
+	label.Parent = frame
+
+	local barBg = Instance.new("Frame")
+	barBg.Position = UDim2.fromOffset(10, 28)
+	barBg.Size = UDim2.new(1, -20, 0, 12)
+	barBg.BackgroundColor3 = Color3.fromRGB(36, 42, 60)
+	barBg.Parent = frame
+	local bbc = Instance.new("UICorner")
+	bbc.CornerRadius = UDim.new(1, 0)
+	bbc.Parent = barBg
+	local fill = Instance.new("Frame")
+	fill.Size = UDim2.fromScale(0, 1)
+	fill.BackgroundColor3 = Color3.fromRGB(90, 200, 120)
+	fill.Parent = barBg
+	local flc = Instance.new("UICorner")
+	flc.CornerRadius = UDim.new(1, 0)
+	flc.Parent = fill
+	local barTxt = Instance.new("TextLabel")
+	barTxt.Size = UDim2.fromScale(1, 1)
+	barTxt.BackgroundTransparency = 1
+	barTxt.Font = Enum.Font.GothamBold
+	barTxt.TextScaled = true
+	barTxt.TextColor3 = Color3.fromRGB(255, 255, 255)
+	barTxt.TextStrokeTransparency = 0.5
+	barTxt.Text = ""
+	barTxt.Parent = barBg
+
+	local hideToken = 0
+
+	Net.getEvent(Net.Events.DailyObjectiveState).OnClientEvent:Connect(function(payload: unknown)
+		local info = payload :: {
+			label: string,
+			emoji: string,
+			progress: number,
+			target: number,
+			done: boolean,
+			coins: number,
+			packs: number,
+		}
+		label.Text = string.format("%s %s", info.emoji, info.label)
+		local frac = if info.target > 0 then math.clamp(info.progress / info.target, 0, 1) else 0
+		TweenService:Create(fill, TweenInfo.new(0.4), { Size = UDim2.fromScale(frac, 1) }):Play()
+		if info.done then
+			fill.BackgroundColor3 = Color3.fromRGB(90, 200, 120)
+			barTxt.Text =
+				string.format("✓ COMPLETE  ·  +%d 🪙  +%d 🃏", info.coins, info.packs)
+			-- auto-hide shortly after completion
+			hideToken += 1
+			local mine = hideToken
+			task.delay(5, function()
+				if mine == hideToken then
+					frame.Visible = false
+				end
+			end)
+		else
+			barTxt.Text = string.format(
+				"%d / %d  ·  +%d 🪙 +%d 🃏",
+				info.progress,
+				info.target,
+				info.coins,
+				info.packs
+			)
+		end
+		frame.Visible = true
+	end)
+
+	Net.getEvent(Net.Events.ChoicesMode).OnClientEvent:Connect(function(payload: unknown)
+		gui.Enabled = not (payload :: { active: boolean }).active
+	end)
+	Net.getEvent(Net.Events.RoundStart).OnClientEvent:Connect(function()
+		gui.Enabled = false
+	end)
+	Net.getEvent(Net.Events.MatchOver).OnClientEvent:Connect(function()
+		gui.Enabled = true
+	end)
+end
+
+-- ===== FTUE "Rookie Rewards": a sub-60s first-session reward path for brand-new players. A center
+-- checklist with an instant Welcome-gift tap, then two steps that auto-tick as they open a pack and
+-- jump into a mode. Completing all three pays a bonus, then the panel celebrates + fades out. =====
+do
+	local pg = player:WaitForChild("PlayerGui")
+	local STEPS = {
+		{ key = "gift", icon = "🎁", text = "Claim your Welcome Gift" },
+		{ key = "pack", icon = "🃏", text = "Open a card pack (🃏 CARDS)" },
+		{ key = "mode", icon = "🎮", text = "Jump into any mode (🎮 PLAY)" },
+	}
+
+	local gui = Instance.new("ScreenGui")
+	gui.Name = "RookieRewards"
+	gui.ResetOnSpawn = false
+	gui.IgnoreGuiInset = true
+	gui.DisplayOrder = 40
+	gui.Enabled = false
+	gui.Parent = pg
+
+	local panel = Instance.new("Frame")
+	panel.AnchorPoint = Vector2.new(0.5, 0.5)
+	panel.Position = UDim2.fromScale(0.5, 0.5)
+	panel.Size = UDim2.fromOffset(400, 318)
+	panel.BackgroundColor3 = Color3.fromRGB(16, 20, 34)
+	panel.BorderSizePixel = 0
+	panel.Parent = gui
+	local pc = Instance.new("UICorner")
+	pc.CornerRadius = UDim.new(0, 18)
+	pc.Parent = panel
+	local pstroke = Instance.new("UIStroke")
+	pstroke.Color = Color3.fromRGB(255, 215, 120)
+	pstroke.Thickness = 3
+	pstroke.Parent = panel
+	TweenService:Create(
+		pstroke,
+		TweenInfo.new(1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+		{ Transparency = 0.5 }
+	):Play()
+
+	local title = Instance.new("TextLabel")
+	title.Size = UDim2.new(1, -28, 0, 30)
+	title.Position = UDim2.fromOffset(14, 14)
+	title.BackgroundTransparency = 1
+	title.Font = Enum.Font.GothamBlack
+	title.TextScaled = true
+	title.TextColor3 = Color3.fromRGB(255, 215, 120)
+	title.Text = "🎁 ROOKIE REWARDS"
+	title.Parent = panel
+
+	local sub = Instance.new("TextLabel")
+	sub.Size = UDim2.new(1, -28, 0, 18)
+	sub.Position = UDim2.fromOffset(14, 46)
+	sub.BackgroundTransparency = 1
+	sub.Font = Enum.Font.GothamMedium
+	sub.TextScaled = true
+	sub.TextColor3 = Color3.fromRGB(180, 188, 205)
+	sub.Text = "Do all 3 to earn a bonus — takes under a minute!"
+	sub.Parent = panel
+
+	type RowUi = { tick: TextLabel, btn: TextButton }
+	local rows: { [string]: RowUi } = {}
+	for i, step in STEPS do
+		local row = Instance.new("Frame")
+		row.Position = UDim2.fromOffset(14, 74 + (i - 1) * 58)
+		row.Size = UDim2.new(1, -28, 0, 50)
+		row.BackgroundColor3 = Color3.fromRGB(26, 30, 44)
+		row.Parent = panel
+		local rc = Instance.new("UICorner")
+		rc.CornerRadius = UDim.new(0, 10)
+		rc.Parent = row
+
+		local tick = Instance.new("TextLabel")
+		tick.Position = UDim2.fromOffset(8, 0)
+		tick.Size = UDim2.fromOffset(40, 50)
+		tick.BackgroundTransparency = 1
+		tick.Font = Enum.Font.GothamBlack
+		tick.TextScaled = true
+		tick.Text = step.icon
+		tick.Parent = row
+
+		local txt = Instance.new("TextLabel")
+		txt.Position = UDim2.fromOffset(54, 0)
+		txt.Size = UDim2.new(1, -180, 1, 0)
+		txt.BackgroundTransparency = 1
+		txt.Font = Enum.Font.GothamBold
+		txt.TextScaled = true
+		txt.TextXAlignment = Enum.TextXAlignment.Left
+		txt.TextColor3 = Color3.fromRGB(235, 240, 250)
+		txt.Text = step.text
+		txt.Parent = row
+
+		local btn = Instance.new("TextButton")
+		btn.AnchorPoint = Vector2.new(1, 0.5)
+		btn.Position = UDim2.new(1, -10, 0.5, 0)
+		btn.Size = UDim2.fromOffset(112, 36)
+		btn.Font = Enum.Font.GothamBlack
+		btn.TextScaled = true
+		btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+		btn.Parent = row
+		local bc = Instance.new("UICorner")
+		bc.CornerRadius = UDim.new(0, 8)
+		bc.Parent = btn
+		if step.key == "gift" then
+			btn.BackgroundColor3 = Color3.fromRGB(60, 170, 90)
+			btn.Text = "CLAIM"
+			btn.Activated:Connect(function()
+				Net.getEvent(Net.Events.WelcomeClaim):FireServer({ step = "gift" })
+			end)
+		else
+			btn.BackgroundColor3 = Color3.fromRGB(40, 44, 60)
+			btn.AutoButtonColor = false
+			btn.Text = "TO DO"
+		end
+		rows[step.key] = { tick = tick, btn = btn }
+	end
+
+	local function markDone(key: string)
+		local ui = rows[key]
+		if not ui then
+			return
+		end
+		ui.tick.Text = "✅"
+		ui.btn.BackgroundColor3 = Color3.fromRGB(40, 44, 60)
+		ui.btn.AutoButtonColor = false
+		ui.btn.Text = "✓ DONE"
+	end
+
+	local finished = false
+	Net.getEvent(Net.Events.WelcomeState).OnClientEvent:Connect(function(payload: unknown)
+		local info = payload :: { done: { [string]: boolean }, complete: boolean }
+		if finished then
+			return
+		end
+		gui.Enabled = true
+		for _, step in STEPS do
+			if info.done[step.key] then
+				markDone(step.key)
+			end
+		end
+		if info.complete then
+			finished = true
+			title.Text = "⭐ ALL DONE — nice!"
+			sub.Text = "You're set. Have fun out there!"
+			task.delay(3.5, function()
+				local fade = TweenService:Create(panel, TweenInfo.new(0.6), {
+					Position = UDim2.fromScale(0.5, 0.42),
+					BackgroundTransparency = 1,
+				})
+				fade:Play()
+				fade.Completed:Wait()
+				gui.Enabled = false
+			end)
+		end
+	end)
+end
+
 -- ===== Growth nudge: after a win / Choices finish, a small reminder to Like + Favorite (boosts
 -- Roblox discovery) and a one-tap Invite Friends button (social/viral loop). No reward is tied to
 -- liking (Roblox policy) -- it's a pure reminder. Self-throttled so it never spams. =====
