@@ -1873,6 +1873,93 @@ do
 	end)
 end
 
+-- Shared dock registry: the feature buttons (Club/Cards/Deals/Ranked/Trade) register here and start
+-- hidden; the ☰ MENU drawer below shows/hides them, so the HUD isn't a tall wall of buttons. Panels
+-- raise `attention` (e.g. club coins ready, packs to open) so the menu can show a "look here" dot
+-- even while collapsed. Declared at chunk scope so every panel do-block can see it.
+local hudDock = {
+	buttons = {} :: { TextButton },
+	attention = {} :: { [string]: boolean },
+	refresh = function() end, -- reassigned by the menu block
+}
+
+-- ===== HUD menu drawer: one ☰ MENU button that expands/collapses the feature-button stack, with an
+-- attention dot when a panel wants the player's eye. =====
+do
+	local pg = player:WaitForChild("PlayerGui")
+	local expanded = false
+
+	local gui = Instance.new("ScreenGui")
+	gui.Name = "HudMenu"
+	gui.ResetOnSpawn = false
+	gui.IgnoreGuiInset = true
+	gui.DisplayOrder = 24
+	gui.Parent = pg
+
+	local btn = Instance.new("TextButton")
+	btn.AnchorPoint = Vector2.new(1, 0)
+	btn.Position = UDim2.new(1, -12, 0, 150)
+	btn.Size = UDim2.fromOffset(140, 42)
+	btn.BackgroundColor3 = Color3.fromRGB(28, 32, 46)
+	btn.Font = Enum.Font.GothamBlack
+	btn.TextScaled = true
+	btn.TextColor3 = Color3.fromRGB(235, 240, 250)
+	btn.Text = "☰ MENU"
+	btn.Parent = gui
+	local bc = Instance.new("UICorner")
+	bc.CornerRadius = UDim.new(0, 10)
+	bc.Parent = btn
+
+	-- attention dot (top-right of the menu button)
+	local dot = Instance.new("Frame")
+	dot.AnchorPoint = Vector2.new(1, 0)
+	dot.Position = UDim2.new(1, 2, 0, -2)
+	dot.Size = UDim2.fromOffset(16, 16)
+	dot.BackgroundColor3 = Color3.fromRGB(255, 80, 90)
+	dot.Visible = false
+	dot.Parent = btn
+	local dotc = Instance.new("UICorner")
+	dotc.CornerRadius = UDim.new(1, 0)
+	dotc.Parent = dot
+
+	local function apply()
+		for _, b in hudDock.buttons do
+			b.Visible = expanded
+		end
+		btn.Text = expanded and "✕ CLOSE" or "☰ MENU"
+		btn.BackgroundColor3 = expanded and Color3.fromRGB(44, 50, 70) or Color3.fromRGB(28, 32, 46)
+	end
+
+	-- show the dot when any panel is flagging attention (and we're collapsed)
+	hudDock.refresh = function()
+		local any = false
+		for _, on in hudDock.attention do
+			if on then
+				any = true
+				break
+			end
+		end
+		dot.Visible = any and not expanded
+	end
+
+	btn.Activated:Connect(function()
+		expanded = not expanded
+		apply()
+		hudDock.refresh()
+	end)
+	apply()
+
+	Net.getEvent(Net.Events.ChoicesMode).OnClientEvent:Connect(function(payload: unknown)
+		gui.Enabled = not (payload :: { active: boolean }).active
+	end)
+	Net.getEvent(Net.Events.RoundStart).OnClientEvent:Connect(function()
+		gui.Enabled = false
+	end)
+	Net.getEvent(Net.Events.MatchOver).OnClientEvent:Connect(function()
+		gui.Enabled = true
+	end)
+end
+
 -- ===== Idle Football Club: a passive coin earner (the daily return hook). The button flips to a
 -- green "💰 +X" when coins have piled up; the panel banks them + upgrades the earn rate. =====
 do
@@ -1896,7 +1983,7 @@ do
 	-- the launcher button (top-right, under the 🎥 record button)
 	local btn = Instance.new("TextButton")
 	btn.AnchorPoint = Vector2.new(1, 0)
-	btn.Position = UDim2.new(1, -12, 0, 150)
+	btn.Position = UDim2.new(1, -12, 0, 202)
 	btn.Size = UDim2.fromOffset(140, 42)
 	btn.BackgroundColor3 = Color3.fromRGB(22, 24, 34)
 	btn.BackgroundTransparency = 0.1
@@ -1904,8 +1991,10 @@ do
 	btn.TextScaled = true
 	btn.TextColor3 = Color3.fromRGB(255, 235, 150)
 	btn.Text = "🏟️ CLUB"
+	btn.Visible = false -- collapsed by default; shown via the ☰ MENU drawer
 	btn.Parent = gui
 	rounded(btn, 10)
+	table.insert(hudDock.buttons, btn)
 
 	-- modal panel
 	local backdrop = Instance.new("TextButton")
@@ -2040,6 +2129,8 @@ do
 				btn.BackgroundColor3 = Color3.fromRGB(22, 24, 34)
 				btn.TextColor3 = Color3.fromRGB(255, 235, 150)
 			end
+			hudDock.attention.club = p >= worth
+			hudDock.refresh()
 			if backdrop.Visible then
 				refresh()
 			end
@@ -2082,7 +2173,7 @@ do
 
 	local btn = Instance.new("TextButton")
 	btn.AnchorPoint = Vector2.new(1, 0)
-	btn.Position = UDim2.new(1, -12, 0, 202)
+	btn.Position = UDim2.new(1, -12, 0, 254)
 	btn.Size = UDim2.fromOffset(140, 42)
 	btn.BackgroundColor3 = Color3.fromRGB(22, 24, 34)
 	btn.BackgroundTransparency = 0.1
@@ -2090,8 +2181,10 @@ do
 	btn.TextScaled = true
 	btn.TextColor3 = Color3.fromRGB(255, 235, 150)
 	btn.Text = "🃏 CARDS"
+	btn.Visible = false -- collapsed by default; shown via the ☰ MENU drawer
 	btn.Parent = gui
 	rounded(btn, 10)
+	table.insert(hudDock.buttons, btn)
 
 	local backdrop = Instance.new("TextButton")
 	backdrop.Size = UDim2.fromScale(1, 1)
@@ -2236,6 +2329,8 @@ do
 			btn.BackgroundColor3 = Color3.fromRGB(22, 24, 34)
 			btn.TextColor3 = Color3.fromRGB(255, 235, 150)
 		end
+		hudDock.attention.cards = packs > 0
+		hudDock.refresh()
 	end
 
 	-- pack-open reveal overlay
@@ -2389,7 +2484,7 @@ do
 
 	local btn = Instance.new("TextButton")
 	btn.AnchorPoint = Vector2.new(1, 0)
-	btn.Position = UDim2.new(1, -12, 0, 254)
+	btn.Position = UDim2.new(1, -12, 0, 306)
 	btn.Size = UDim2.fromOffset(140, 42)
 	btn.BackgroundColor3 = Color3.fromRGB(22, 24, 34)
 	btn.BackgroundTransparency = 0.1
@@ -2397,8 +2492,10 @@ do
 	btn.TextScaled = true
 	btn.TextColor3 = Color3.fromRGB(140, 230, 170)
 	btn.Text = "🛒 DEALS"
+	btn.Visible = false -- collapsed by default; shown via the ☰ MENU drawer
 	btn.Parent = gui
 	rounded(btn, 10)
+	table.insert(hudDock.buttons, btn)
 
 	local backdrop = Instance.new("TextButton")
 	backdrop.Size = UDim2.fromScale(1, 1)
@@ -2644,7 +2741,7 @@ do
 
 	local btn = Instance.new("TextButton")
 	btn.AnchorPoint = Vector2.new(1, 0)
-	btn.Position = UDim2.new(1, -12, 0, 306)
+	btn.Position = UDim2.new(1, -12, 0, 358)
 	btn.Size = UDim2.fromOffset(140, 42)
 	btn.BackgroundColor3 = Color3.fromRGB(22, 24, 34)
 	btn.BackgroundTransparency = 0.1
@@ -2652,8 +2749,10 @@ do
 	btn.TextScaled = true
 	btn.TextColor3 = Color3.fromRGB(255, 215, 120)
 	btn.Text = "🏆 RANKED"
+	btn.Visible = false -- collapsed by default; shown via the ☰ MENU drawer
 	btn.Parent = gui
 	rounded(btn, 10)
+	table.insert(hudDock.buttons, btn)
 
 	local backdrop = Instance.new("TextButton")
 	backdrop.Size = UDim2.fromScale(1, 1)
@@ -2900,7 +2999,7 @@ do
 
 	local btn = Instance.new("TextButton")
 	btn.AnchorPoint = Vector2.new(1, 0)
-	btn.Position = UDim2.new(1, -12, 0, 358)
+	btn.Position = UDim2.new(1, -12, 0, 410)
 	btn.Size = UDim2.fromOffset(140, 42)
 	btn.BackgroundColor3 = Color3.fromRGB(22, 24, 34)
 	btn.BackgroundTransparency = 0.1
@@ -2908,8 +3007,10 @@ do
 	btn.TextScaled = true
 	btn.TextColor3 = Color3.fromRGB(150, 200, 255)
 	btn.Text = "🔄 TRADE"
+	btn.Visible = false -- collapsed by default; shown via the ☰ MENU drawer
 	btn.Parent = gui
 	rounded(btn, 10)
+	table.insert(hudDock.buttons, btn)
 
 	-- ---- Player picker ----
 	local pickBack = Instance.new("TextButton")
