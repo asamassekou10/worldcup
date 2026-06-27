@@ -164,6 +164,37 @@ local function backPill(parent: GuiObject, onBack: () -> ()): TextButton
 	return b
 end
 
+-- ===== Lobby-HUD visibility: the floating banners (live event, daily objective) are lobby-only
+-- info. They hide whenever the player is in a run OR has a menu/panel open, so they never overlap a
+-- modal. Elements register in lobbyHudEls; panels flip `setMenuOverlay`; runs flip via the events. =
+local lobbyHudEls: { ScreenGui } = {}
+local hudInRun = false
+local hudInMenu = false
+local function applyLobbyHud()
+	local hide = hudInRun or hudInMenu
+	for _, g in lobbyHudEls do
+		g.Enabled = not hide
+	end
+end
+local function setMenuOverlay(open: boolean)
+	hudInMenu = open
+	applyLobbyHud()
+end
+Net.getEvent(Net.Events.ChoicesMode).OnClientEvent:Connect(function(payload: unknown)
+	hudInRun = (payload :: { active: boolean }).active
+	applyLobbyHud()
+end)
+Net.getEvent(Net.Events.RoundStart).OnClientEvent:Connect(function()
+	hudInRun = true
+	applyLobbyHud()
+end)
+Net.getEvent(Net.Events.MatchOver).OnClientEvent:Connect(function()
+	hudInRun = false
+	applyLobbyHud()
+end)
+-- UI.luau drives this when its own panels (Shop/Ranks/Store/1V1) open/close.
+hud.onPanelToggle = setMenuOverlay
+
 local joinQueue = Net.getEvent(Net.Events.JoinQueue)
 local leaveQueue = Net.getEvent(Net.Events.LeaveQueue)
 local submitInput = Net.getEvent(Net.Events.SubmitInput)
@@ -1904,15 +1935,7 @@ do
 		end
 	end)
 
-	Net.getEvent(Net.Events.ChoicesMode).OnClientEvent:Connect(function(payload: unknown)
-		gui.Enabled = not (payload :: { active: boolean }).active
-	end)
-	Net.getEvent(Net.Events.RoundStart).OnClientEvent:Connect(function()
-		gui.Enabled = false
-	end)
-	Net.getEvent(Net.Events.MatchOver).OnClientEvent:Connect(function()
-		gui.Enabled = true
-	end)
+	table.insert(lobbyHudEls, gui) -- hidden during runs / while a menu or panel is open
 end
 
 -- ===== Unified MENU: a single bottom-center button opens a grid of EVERY feature (Modes, Shop,
@@ -2290,6 +2313,7 @@ do
 	end
 
 	hudMenu.open = function()
+		setMenuOverlay(true)
 		render()
 		backdrop.BackgroundTransparency = 1
 		backdrop.Visible = true
@@ -2304,6 +2328,7 @@ do
 		pop:Play()
 	end
 	local function close()
+		setMenuOverlay(false)
 		TweenService:Create(backdrop, TweenInfo.new(0.15), { BackgroundTransparency = 1 }):Play()
 		task.delay(0.15, function()
 			backdrop.Visible = false
@@ -2473,12 +2498,14 @@ do
 		color = Color3.fromRGB(255, 235, 150),
 		attentionKey = "club",
 		open = function()
+			setMenuOverlay(true)
 			refresh()
 			backdrop.Visible = true
 		end,
 	})
 	backdrop.Activated:Connect(function()
 		backdrop.Visible = false
+		setMenuOverlay(false)
 	end)
 
 	-- ticking loop: raise the MENU attention dot when a worthwhile coin pile has built up
@@ -2767,12 +2794,14 @@ do
 		color = Color3.fromRGB(255, 235, 150),
 		attentionKey = "cards",
 		open = function()
+			setMenuOverlay(true)
 			refresh()
 			backdrop.Visible = true
 		end,
 	})
 	backdrop.Activated:Connect(function()
 		backdrop.Visible = false
+		setMenuOverlay(false)
 	end)
 
 	Net.getEvent(Net.Events.ChoicesMode).OnClientEvent:Connect(function(payload: unknown)
@@ -3011,10 +3040,12 @@ do
 		label = "Daily Deals",
 		color = Color3.fromRGB(140, 230, 170),
 		open = function()
+			setMenuOverlay(true)
 			backdrop.Visible = true
 		end,
 	})
 	backdrop.Activated:Connect(function()
+		setMenuOverlay(false)
 		backdrop.Visible = false
 	end)
 
@@ -3251,12 +3282,14 @@ do
 		label = "Tournament",
 		color = Color3.fromRGB(255, 215, 120),
 		open = function()
+			setMenuOverlay(true)
 			render()
 			backdrop.Visible = true
 		end,
 	})
 	backdrop.Activated:Connect(function()
 		backdrop.Visible = false
+		setMenuOverlay(false)
 	end)
 
 	Net.getEvent(Net.Events.ChoicesMode).OnClientEvent:Connect(function(payload: unknown)
@@ -3391,12 +3424,14 @@ do
 		label = "Trade",
 		color = Color3.fromRGB(150, 200, 255),
 		open = function()
+			setMenuOverlay(true)
 			refreshPicker()
 			pickBack.Visible = true
 		end,
 	})
 	pickBack.Activated:Connect(function()
 		pickBack.Visible = false
+		setMenuOverlay(false)
 	end)
 
 	-- ---- Incoming-invite toast ----
@@ -3833,15 +3868,7 @@ do
 		frame.Visible = true
 	end)
 
-	Net.getEvent(Net.Events.ChoicesMode).OnClientEvent:Connect(function(payload: unknown)
-		gui.Enabled = not (payload :: { active: boolean }).active
-	end)
-	Net.getEvent(Net.Events.RoundStart).OnClientEvent:Connect(function()
-		gui.Enabled = false
-	end)
-	Net.getEvent(Net.Events.MatchOver).OnClientEvent:Connect(function()
-		gui.Enabled = true
-	end)
+	table.insert(lobbyHudEls, gui) -- hidden during runs / while a menu or panel is open
 end
 
 -- ===== FTUE "Rookie Rewards": a sub-60s first-session reward path for brand-new players. A center

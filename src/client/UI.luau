@@ -114,6 +114,7 @@ export type Hud = {
 	openRanks: () -> (),
 	openStore: () -> (),
 	openChallenge1v1: () -> (),
+	onPanelToggle: ((open: boolean) -> ())?,
 	showChallengeInvite: (fromUserId: number, fromName: string) -> (),
 	getInput: () -> { x: number, y: number, power: number, curve: number },
 	setProfile: (data: Types.ProfileData) -> (),
@@ -306,6 +307,7 @@ function UI.create(player: Player): Hud
 		onChallenge = nil :: ((targetUserId: number) -> ())?,
 		onChallengeRespond = nil :: ((fromUserId: number, accept: boolean) -> ())?,
 		onEmote = nil :: ((emoji: string) -> ())?,
+		onPanelToggle = nil :: ((open: boolean) -> ())?,
 	}
 
 	local screen = Instance.new("ScreenGui")
@@ -502,6 +504,14 @@ function UI.create(player: Player): Hud
 	lobby.Size = UDim2.fromScale(1, 1)
 	lobby.BackgroundTransparency = 1
 	lobby.Parent = screen
+
+	-- One hook covers every UI.luau panel: the lobby is hidden exactly while a panel is up, so mirror
+	-- that to onPanelToggle (init.client hides the floating lobby banners while a panel is open).
+	lobby:GetPropertyChangedSignal("Visible"):Connect(function()
+		if self.onPanelToggle then
+			self.onPanelToggle(not lobby.Visible)
+		end
+	end)
 
 	-- Whenever we return to the lobby, drop the full-screen panel backdrop (showPanel
 	-- raises it). Centralised here so every panel-close path is covered automatically.
