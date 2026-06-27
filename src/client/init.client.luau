@@ -505,9 +505,15 @@ do
 	gui.Enabled = false
 	gui.Parent = player:WaitForChild("PlayerGui")
 
+	-- On phones the left-center spot sits over the thumbstick / runway, so anchor the splash to the
+	-- bottom-center there (and slide it up); on desktop keep it left-center (slide in from the left).
+	local IS_TOUCH = game:GetService("UserInputService").TouchEnabled
+	local SHOWN_POS = if IS_TOUCH then UDim2.new(0.5, 0, 1, -118) else UDim2.new(0, 20, 0.5, 0)
+	local HIDDEN_POS = if IS_TOUCH then UDim2.new(0.5, 0, 1, 200) else UDim2.new(0, -300, 0.5, 0)
+
 	local panel = Instance.new("Frame")
-	panel.AnchorPoint = Vector2.new(0, 0.5)
-	panel.Position = UDim2.new(0, 20, 0.5, 0)
+	panel.AnchorPoint = if IS_TOUCH then Vector2.new(0.5, 1) else Vector2.new(0, 0.5)
+	panel.Position = SHOWN_POS
 	panel.Size = UDim2.fromOffset(248, 116)
 	panel.BackgroundColor3 = Color3.fromRGB(12, 16, 28)
 	panel.BackgroundTransparency = 0.15
@@ -548,10 +554,13 @@ do
 		fc.Parent = fill
 		local txt = Instance.new("TextLabel")
 		txt.Size = UDim2.new(1, -16, 1, 0)
-		txt.Position = UDim2.fromOffset(8, 0)
+		txt.Position = UDim2.fromOffset(10, 0)
 		txt.BackgroundTransparency = 1
 		txt.Font = Enum.Font.GothamBlack
-		txt.TextScaled = true
+		txt.RichText = true -- so the % can be the hero (big) and the label smaller, in one label
+		txt.TextScaled = false
+		txt.TextSize = 22
+		txt.TextTruncate = Enum.TextTruncate.AtEnd
 		txt.TextXAlignment = Enum.TextXAlignment.Left
 		txt.TextColor3 = Color3.fromRGB(255, 255, 255)
 		txt.TextStrokeTransparency = 0.4
@@ -614,16 +623,25 @@ do
 			fillB.BackgroundColor3 = if greenA
 				then Color3.fromRGB(150, 60, 60)
 				else Color3.fromRGB(70, 190, 110)
-			txtA.Text = r.aText
-			txtB.Text = r.bText
+			txtA.Text = string.format('<font size="20">%s</font>', r.aText)
+			txtB.Text = string.format('<font size="20">%s</font>', r.bText)
 		else
 			header.Text = "🌍 What everyone picked"
 			fillA.BackgroundColor3 = Color3.fromRGB(60, 130, 230)
 			fillB.BackgroundColor3 = Color3.fromRGB(235, 120, 55)
 			fillA.Size = UDim2.fromScale(math.max(0.06, r.aPct / 100), 1)
 			fillB.Size = UDim2.fromScale(math.max(0.06, r.bPct / 100), 1)
-			txtA.Text = string.format("%d%%  %s", r.aPct, r.aText)
-			txtB.Text = string.format("%d%%  %s", r.bPct, r.bText)
+			-- the crowd % is the viral hook -> make it the hero (big), label smaller
+			txtA.Text = string.format(
+				'<font size="32"><b>%d%%</b></font> <font size="17">%s</font>',
+				r.aPct,
+				r.aText
+			)
+			txtB.Text = string.format(
+				'<font size="32"><b>%d%%</b></font> <font size="17">%s</font>',
+				r.bPct,
+				r.bText
+			)
 		end
 		-- highlight the door you chose
 		txtA.TextColor3 = if r.picked == "a"
@@ -633,11 +651,11 @@ do
 			then Color3.fromRGB(255, 240, 150)
 			else Color3.fromRGB(255, 255, 255)
 		gui.Enabled = true
-		-- slide in from off the left edge for a bit of juice
-		panel.Position = UDim2.new(0, -300, 0.5, 0)
+		-- slide in for a bit of juice
+		panel.Position = HIDDEN_POS
 		TweenService
 			:Create(panel, TweenInfo.new(0.28, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-				Position = UDim2.new(0, 20, 0.5, 0),
+				Position = SHOWN_POS,
 			})
 			:Play()
 		-- hold briefly, then slide back out (kept shorter than the gate interval so it never
@@ -649,7 +667,7 @@ do
 			local out = TweenService:Create(
 				panel,
 				TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
-				{ Position = UDim2.new(0, -300, 0.5, 0) }
+				{ Position = HIDDEN_POS }
 			)
 			out:Play()
 			out.Completed:Connect(function()

@@ -1811,6 +1811,51 @@ function TriviaParkourService.start()
 		gates[i] = buildGate(i)
 	end
 
+	-- ===== coin pickups between gates =====
+	-- A reward + a breather between choices: a glowing coin sits midway between each pair of gates,
+	-- alternating lanes (nudging you to switch sides). Touch grants a few coins once per player per
+	-- run -- it varies the rhythm so the runway isn't just choice → choice → choice.
+	local COIN_REWARD = 12
+	for i = 1, NUM_GATES - 1 do
+		local zz = gateZ(i) + GATE_SPACING / 2
+		local lane = if i % 2 == 0 then -LANE_OFF else LANE_OFF
+		local coin = Instance.new("Part")
+		coin.Name = "CoinPickup"
+		coin.Shape = Enum.PartType.Cylinder
+		coin.Size = Vector3.new(0.4, 3, 3)
+		coin.Anchored = true
+		coin.CanCollide = false
+		coin.Material = Enum.Material.Neon
+		coin.Color = Color3.fromRGB(255, 205, 60)
+		-- the 90° yaw turns the cylinder's flat face toward the approaching runner (who runs +Z)
+		coin.CFrame = CFrame.new(O.X + lane, Y + 3.4, zz) * CFrame.Angles(0, math.rad(90), 0)
+		coin.Parent = folder
+		local light = Instance.new("PointLight")
+		light.Color = coin.Color
+		light.Range = 9
+		light.Brightness = 1.4
+		light.Parent = coin
+		local aura = Instance.new("ParticleEmitter")
+		aura.Color = ColorSequence.new(Color3.fromRGB(255, 230, 140))
+		aura.LightEmission = 1
+		aura.Rate = 8
+		aura.Lifetime = NumberRange.new(0.5, 0.9)
+		aura.Speed = NumberRange.new(0.5, 1.5)
+		aura.Size = NumberSequence.new(0.8)
+		aura.Transparency = NumberSequence.new(0.4)
+		aura.Parent = coin
+		local collected: { [Player]: boolean } = {}
+		coin.Touched:Connect(function(hit: BasePart)
+			local plr = playerFromHit(hit)
+			if not plr or collected[plr] or not runState[plr] then
+				return
+			end
+			collected[plr] = true
+			DataService.grantReward(plr, COIN_REWARD, 0)
+			aura:Emit(24) -- a quick sparkle pop on pickup
+		end)
+	end
+
 	-- ===== trophy finish =====
 	local podium = block(
 		folder,
