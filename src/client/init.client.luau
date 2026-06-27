@@ -3759,6 +3759,7 @@ do
 		active = info.active == true
 		if not active then
 			tradeBack.Visible = false
+			setMenuOverlay(false) -- trade ended -> restore lobby banners
 			return
 		end
 		partnerName = info.partnerName or "?"
@@ -3767,6 +3768,7 @@ do
 		myLock = info.myLock == true
 		theirLock = info.theirLock == true
 		bothLocked = info.bothLocked == true
+		setMenuOverlay(true) -- a live trade window covers the screen; hide the floating banners
 		tradeBack.Visible = true
 		pickBack.Visible = false
 		invite.Visible = false
