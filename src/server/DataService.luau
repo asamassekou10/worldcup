@@ -72,6 +72,8 @@ local PROFILE_TEMPLATE: Types.ProfileData = {
 	DailyObjProgress = 0, -- progress toward today's single big objective
 	DailyObjDone = false, -- today's objective reward already paid?
 	RookieDone = {}, -- FTUE: set of completed rookie-reward step keys (gift/pack/mode)
+	FieldCoinDay = 0, -- day index the field-coin daily total belongs to
+	FieldCoinToday = 0, -- coins collected from the hub field today (capped, anti-farm)
 }
 
 -- Systems that need a player's profile (e.g. cosmetics applying the equipped
@@ -1074,6 +1076,30 @@ function DataService.openPack(
 	updateLeaderstats(player)
 	pushToClient(player)
 	return { rolled = rolled, newIds = newIds }
+end
+
+-- Hub field coins: grant `amount` coins from a field pickup, but only up to a daily cap (anti-farm,
+-- keeps the trickle from inflating the economy). Returns true if it actually paid (false if capped).
+local FIELD_COIN_CAP = 300 -- max coins/day collectible off the hub field
+function DataService.grantFieldCoin(player: Player, amount: number): boolean
+	local profile = profiles[player]
+	if not profile or not profile:IsActive() then
+		return false
+	end
+	local data = profile.Data
+	local today = Progression.dayIndex()
+	if data.FieldCoinDay ~= today then
+		data.FieldCoinDay = today
+		data.FieldCoinToday = 0
+	end
+	if data.FieldCoinToday >= FIELD_COIN_CAP then
+		return false -- hit the daily cap; the pickup gives nothing (no exploit)
+	end
+	data.FieldCoinToday += amount
+	data.Coins += amount
+	updateLeaderstats(player)
+	pushToClient(player)
+	return true
 end
 
 -- Social growth: a once-per-day reward for playing in a server with a friend (the "invite a
