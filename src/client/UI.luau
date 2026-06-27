@@ -252,7 +252,28 @@ end
 
 -- Consistent panel chrome: an accent underline bar beneath a (left-aligned) title
 -- and a polished close button.
+-- Cap how large TextScaled text may grow. These full-screen panels let TextScaled balloon labels
+-- and buttons to ~50px on desktop (the "giant BUY/EQUIP" look); a max size keeps them tasteful.
+-- Pure clamp -- it can only shrink over-scaled text, never enlarge or reflow anything.
+local function capScaled(obj: Instance, max: number)
+	if (obj:IsA("TextLabel") or obj:IsA("TextButton")) and obj.TextScaled then
+		if not obj:FindFirstChildOfClass("UITextSizeConstraint") then
+			local c = Instance.new("UITextSizeConstraint")
+			c.MaxTextSize = max
+			c.Parent = obj
+		end
+	end
+end
+
 local function decoratePanel(panel: GuiObject, title: TextLabel, close: GuiButton?)
+	-- Tame oversized text across the whole panel (titles a touch larger), now and as rows stream in.
+	capScaled(title, 44)
+	for _, d in panel:GetDescendants() do
+		capScaled(d, 30)
+	end
+	panel.DescendantAdded:Connect(function(d)
+		capScaled(d, 30)
+	end)
 	-- These panels ignore the GUI inset (to fill the screen), so their titles would
 	-- otherwise render BEHIND the Roblox topbar (menu/chat/mic/account buttons). A
 	-- top inset pushes all panel content clear of it. One source of truth for every
@@ -272,7 +293,23 @@ local function decoratePanel(panel: GuiObject, title: TextLabel, close: GuiButto
 	corner(bar, 4)
 	gradient(bar, Theme.Accent, Theme.Gold, 0)
 	bar.Parent = panel
+	-- Standardise the close control into a neutral "‹ Back" pill (was a jarring red X), matching the
+	-- feature panels. One place styles every panel that calls decoratePanel.
 	if close then
+		close.Text = "‹  Back"
+		close.Size = UDim2.fromScale(0.15, 0.07)
+		close.Position = UDim2.fromScale(0.8, 0.045)
+		close.BackgroundColor3 = Color3.fromRGB(42, 47, 66)
+		close.TextColor3 = Color3.fromRGB(214, 220, 234)
+		close.Font = Enum.Font.GothamBold
+		if not close:FindFirstChildOfClass("UIPadding") then
+			local cp = Instance.new("UIPadding")
+			cp.PaddingTop = UDim.new(0, 8)
+			cp.PaddingBottom = UDim.new(0, 8)
+			cp.PaddingLeft = UDim.new(0, 14)
+			cp.PaddingRight = UDim.new(0, 14)
+			cp.Parent = close
+		end
 		polish(close, false)
 	end
 end
