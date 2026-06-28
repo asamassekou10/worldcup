@@ -352,6 +352,11 @@ local function applyCostume(player: Player, template: Model)
 		char:FindFirstChild("RightUpperLeg") or char:FindFirstChild("Right Leg")
 	) :: BasePart?
 	local H = MASCOT_HEIGHT
+	-- Pass 1: position every part and gather the lower ("leg-region") parts. We split legs left/right
+	-- around the legs' OWN centre (not a fixed line) -- the model's box can be skewed, which otherwise
+	-- dumps both legs on one side (so only one leg animated). rel.X = side, rel.Y = height.
+	local parts: { BasePart } = {}
+	local legSumX, legCount = 0, 0
 	for _, d in costume:GetDescendants() do
 		if d:IsA("BasePart") then
 			d.CFrame = target * fromUpright:ToObjectSpace(d.CFrame)
@@ -359,21 +364,30 @@ local function applyCostume(player: Player, template: Model)
 			d.CanCollide = false
 			d.CanQuery = false
 			d.Massless = true
-			-- where does this part sit, in the player's frame? (rel.Y = height, rel.X = side)
+			table.insert(parts, d)
 			local rel = target:ToObjectSpace(CFrame.new(d.Position))
-			local weldTo: BasePart = hrp :: BasePart
-			if rel.Y < -H * 0.12 and math.abs(rel.X) > 0.35 then
-				weldTo = (if rel.X < 0 then leftLeg else rightLeg) or hrp :: BasePart
-			elseif rel.Y > H * 0.3 then
-				weldTo = headPart or upperTorso or hrp :: BasePart
-			elseif rel.Y > -H * 0.12 then
-				weldTo = upperTorso or hrp :: BasePart
+			if rel.Y < -H * 0.1 then
+				legSumX += rel.X
+				legCount += 1
 			end
-			local w = Instance.new("WeldConstraint")
-			w.Part0 = weldTo
-			w.Part1 = d
-			w.Parent = d
 		end
+	end
+	local splitX = if legCount > 0 then legSumX / legCount else 0
+	-- Pass 2: weld each part to the right limb (lower -> nearer leg, top -> head, middle -> torso).
+	for _, d in parts do
+		local rel = target:ToObjectSpace(CFrame.new(d.Position))
+		local weldTo: BasePart = hrp :: BasePart
+		if rel.Y < -H * 0.1 and leftLeg and rightLeg then
+			weldTo = if rel.X < splitX then leftLeg else rightLeg
+		elseif rel.Y > H * 0.3 then
+			weldTo = headPart or upperTorso or hrp :: BasePart
+		elseif rel.Y > -H * 0.1 then
+			weldTo = upperTorso or hrp :: BasePart
+		end
+		local w = Instance.new("WeldConstraint")
+		w.Part0 = weldTo
+		w.Part1 = d
+		w.Parent = d
 	end
 	costume.Parent = char
 	-- hide the real body (parts + face decals) so only the costume shows.
