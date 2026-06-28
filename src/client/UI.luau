@@ -582,11 +582,11 @@ function UI.create(player: Player): Hud
 	-- hint; the full matchday details live in the fixtures panel it opens.
 	local nextMatchLabel = Instance.new("TextButton")
 	nextMatchLabel.Size = UDim2.fromScale(0.46, 0.04)
-	nextMatchLabel.Position = UDim2.new(0.13, 0, 0.25, TOP_INSET)
+	nextMatchLabel.Position = UDim2.new(0.27, 0, 0.118, TOP_INSET) -- centred just under the nation chip
 	nextMatchLabel.BackgroundTransparency = 1
 	nextMatchLabel.Font = Enum.Font.GothamBold
 	nextMatchLabel.TextScaled = true
-	nextMatchLabel.TextXAlignment = Enum.TextXAlignment.Left
+	nextMatchLabel.TextXAlignment = Enum.TextXAlignment.Center
 	nextMatchLabel.TextColor3 = Color3.fromRGB(120, 230, 150)
 	nextMatchLabel.TextStrokeTransparency = 0.5
 	nextMatchLabel.Text = ""
