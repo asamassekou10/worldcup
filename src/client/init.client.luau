@@ -1641,7 +1641,7 @@ do
 		gui.Parent = pg
 		local pill = Instance.new("TextButton")
 		pill.AnchorPoint = Vector2.new(0, 0)
-		pill.Position = UDim2.new(0, 12, 0.46, 36) -- just under the live-event banner
+		pill.Position = UDim2.new(0, 12, 0.54, 36) -- just under the live-event banner
 		pill.Size = UDim2.fromOffset(232, 32)
 		pill.BackgroundColor3 = Color3.fromRGB(60, 40, 90)
 		pill.AutoButtonColor = true
@@ -1666,9 +1666,7 @@ do
 			setMenuOverlay(true)
 			Hub.openPredict()
 		end)
-		task.delay(10, function()
-			gui.Enabled = false
-		end)
+		-- stays put (a matchday CTA); dismissed by tapping it, or hidden during runs/menus
 		table.insert(lobbyHudEls, gui)
 	end
 end
@@ -1987,7 +1985,7 @@ do
 
 	local pill = Instance.new("Frame")
 	pill.AnchorPoint = Vector2.new(0, 0)
-	pill.Position = UDim2.new(0, 12, 0.46, 0) -- left edge, below the 🏅 legends button (scale y 0.4)
+	pill.Position = UDim2.new(0, 12, 0.54, 0) -- left edge, clearly below the 🏅 legends button (y 0.4)
 	pill.Size = UDim2.fromOffset(232, 30)
 	pill.BackgroundColor3 = Color3.fromRGB(16, 20, 32)
 	pill.BackgroundTransparency = 0.1
