@@ -1852,31 +1852,31 @@ function TriviaParkourService.start()
 	for i = 1, NUM_GATES - 1 do
 		local zz = gateZ(i) + GATE_SPACING / 2
 		local lane = if i % 2 == 0 then -LANE_OFF else LANE_OFF
-		local center = CFrame.new(O.X + lane, Y + 3.6, zz)
+		local cpos = Vector3.new(O.X + lane, Y + 2.4, zz) -- waist height -> a "run over" coin, not in your face
 
-		-- Invisible hitbox: the robust collection catcher. It also carries the glow + sound, so coins
-		-- still work and read even if the model asset fails to load.
+		-- Invisible hitbox: the robust collection catcher. Kept tight so you must be LITERALLY on the
+		-- coin. It also carries the glow + sound, so coins still read even if the model fails to load.
 		local hit = Instance.new("Part")
 		hit.Name = "CoinPickup"
-		hit.Size = Vector3.new(5, 7, 5)
+		hit.Size = Vector3.new(3.4, 5, 3.4)
 		hit.Anchored = true
 		hit.CanCollide = false
 		hit.CanQuery = false
 		hit.Transparency = 1
-		hit.CFrame = center
+		hit.CFrame = CFrame.new(cpos)
 		hit.Parent = folder
 		local light = Instance.new("PointLight")
 		light.Color = Color3.fromRGB(255, 205, 60)
-		light.Range = 7
-		light.Brightness = 1.1
+		light.Range = 4.5 -- small halo on the coin, not a blob over the player
+		light.Brightness = 0.7
 		light.Parent = hit
 		local aura = Instance.new("ParticleEmitter")
 		aura.Color = ColorSequence.new(Color3.fromRGB(255, 230, 140))
 		aura.LightEmission = 1
-		aura.Rate = 8
+		aura.Rate = 6
 		aura.Lifetime = NumberRange.new(0.5, 0.9)
-		aura.Speed = NumberRange.new(0.5, 1.5)
-		aura.Size = NumberSequence.new(0.8)
+		aura.Speed = NumberRange.new(0.5, 1.2)
+		aura.Size = NumberSequence.new(0.6)
 		aura.Transparency = NumberSequence.new(0.4)
 		aura.Parent = hit
 		local ding = Instance.new("Sound")
@@ -1889,22 +1889,17 @@ function TriviaParkourService.start()
 		-- pivot is offset, which would otherwise float the visible coin away from where it's collected).
 		-- Falls back to a neon disc if the asset didn't load.
 		if coinTemplate then
-			Assets.placeCentered(
-				folder,
-				Config.Models.ChoicesCoin,
-				Vector3.new(O.X + lane, Y + 3.6, zz),
-				4
-			)
+			Assets.placeCentered(folder, Config.Models.ChoicesCoin, cpos, 2.6)
 		else
 			local disc = Instance.new("Part")
 			disc.Shape = Enum.PartType.Cylinder
-			disc.Size = Vector3.new(0.4, 3, 3)
+			disc.Size = Vector3.new(0.4, 2.6, 2.6)
 			disc.Anchored = true
 			disc.CanCollide = false
 			disc.CanQuery = false
 			disc.Material = Enum.Material.Neon
 			disc.Color = Color3.fromRGB(255, 205, 60)
-			disc.CFrame = center * CFrame.Angles(0, math.rad(90), 0)
+			disc.CFrame = CFrame.new(cpos) * CFrame.Angles(0, math.rad(90), 0)
 			disc.Parent = folder
 		end
 

@@ -963,6 +963,23 @@ do
 	end
 	backdrop.Activated:Connect(close)
 
+	-- a visible close button (top-right of the card), so it's obvious how to dismiss -- not just tap
+	local closeX = Instance.new("TextButton")
+	closeX.AnchorPoint = Vector2.new(1, 0)
+	closeX.Position = UDim2.new(0.5, 206, 0.5, -214)
+	closeX.Size = UDim2.fromOffset(34, 34)
+	closeX.BackgroundColor3 = Color3.fromRGB(42, 47, 66)
+	closeX.Font = Enum.Font.GothamBold
+	closeX.TextScaled = true
+	closeX.TextColor3 = Color3.fromRGB(220, 226, 236)
+	closeX.Text = "✕"
+	closeX.ZIndex = 20
+	closeX.Parent = backdrop
+	local closeXc = Instance.new("UICorner")
+	closeXc.CornerRadius = UDim.new(0, 8)
+	closeXc.Parent = closeX
+	closeX.Activated:Connect(close)
+
 	Net.getEvent(Net.Events.ChoicesSummary).OnClientEvent:Connect(function(payload: unknown)
 		local s = payload :: Summary
 		token += 1
@@ -3948,14 +3965,32 @@ do
 	):Play()
 
 	local title = Instance.new("TextLabel")
-	title.Size = UDim2.new(1, -28, 0, 30)
+	title.Size = UDim2.new(1, -60, 0, 30)
 	title.Position = UDim2.fromOffset(14, 14)
 	title.BackgroundTransparency = 1
 	title.Font = Enum.Font.GothamBlack
 	title.TextScaled = true
+	title.TextXAlignment = Enum.TextXAlignment.Left
 	title.TextColor3 = Color3.fromRGB(255, 215, 120)
 	title.Text = "🎁 ROOKIE REWARDS"
 	title.Parent = panel
+
+	local rookieClose = Instance.new("TextButton")
+	rookieClose.AnchorPoint = Vector2.new(1, 0)
+	rookieClose.Position = UDim2.new(1, -12, 0, 12)
+	rookieClose.Size = UDim2.fromOffset(32, 32)
+	rookieClose.BackgroundColor3 = Color3.fromRGB(42, 47, 66)
+	rookieClose.Font = Enum.Font.GothamBold
+	rookieClose.TextScaled = true
+	rookieClose.TextColor3 = Color3.fromRGB(220, 226, 236)
+	rookieClose.Text = "✕"
+	rookieClose.Parent = panel
+	local rcCorner = Instance.new("UICorner")
+	rcCorner.CornerRadius = UDim.new(0, 8)
+	rcCorner.Parent = rookieClose
+	rookieClose.Activated:Connect(function()
+		gui.Enabled = false
+	end)
 
 	local sub = Instance.new("TextLabel")
 	sub.Size = UDim2.new(1, -28, 0, 18)

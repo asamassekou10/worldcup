@@ -23,9 +23,10 @@ local FieldCoinsService = {}
 
 local COIN_REWARD = 4 -- small on purpose (ambient flavour, not real income)
 local RESPAWN = 45 -- seconds before a collected coin returns
-local COIN_H = 4 -- model height in studs
+local COIN_H = 2.6 -- model height in studs (small -- a "walk over" coin, not a glowing blob)
 local SIDE = 60 -- |distance from pitch centre| -- just inside the touchline (PLAZA_DIST = 64)
-local TS = { -48, -32, -16, 0, 16, 32, 48 } -- positions along each walkway
+-- denser line along each walkway (more coins, as requested)
+local TS = { -50, -40, -30, -20, -10, 0, 10, 20, 30, 40, 50 }
 
 local function playerFromHit(hit: BasePart): Player?
 	local char = hit.Parent
@@ -52,7 +53,7 @@ function FieldCoinsService.start()
 		-- even if the model asset fails to load.
 		local hit = Instance.new("Part")
 		hit.Name = "FieldCoin"
-		hit.Size = Vector3.new(6, 7, 6)
+		hit.Size = Vector3.new(3.4, 5, 3.4) -- tight: you must be literally on the coin
 		hit.Anchored = true
 		hit.CanCollide = false
 		hit.CanQuery = false
@@ -61,16 +62,16 @@ function FieldCoinsService.start()
 		hit.Parent = folder
 		local light = Instance.new("PointLight")
 		light.Color = Color3.fromRGB(255, 205, 60)
-		light.Range = 8
-		light.Brightness = 1.1
+		light.Range = 4.5 -- small halo on the coin, not a glow blob
+		light.Brightness = 0.7
 		light.Parent = hit
 		local aura = Instance.new("ParticleEmitter")
 		aura.Color = ColorSequence.new(Color3.fromRGB(255, 230, 140))
 		aura.LightEmission = 1
-		aura.Rate = 8
+		aura.Rate = 6
 		aura.Lifetime = NumberRange.new(0.5, 0.9)
-		aura.Speed = NumberRange.new(0.5, 1.5)
-		aura.Size = NumberSequence.new(0.8)
+		aura.Speed = NumberRange.new(0.5, 1.2)
+		aura.Size = NumberSequence.new(0.6)
 		aura.Transparency = NumberSequence.new(0.4)
 		aura.Parent = hit
 		local ding = Instance.new("Sound")
