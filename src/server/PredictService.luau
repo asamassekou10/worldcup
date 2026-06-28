@@ -103,7 +103,11 @@ local function sendState(player: Player)
 			end
 		end
 	end
-	Net.getEvent(Net.Events.PredictState):FireClient(player, { picks = myPicks, tallies = tallies })
+	Net.getEvent(Net.Events.PredictState):FireClient(player, {
+		picks = myPicks,
+		tallies = tallies,
+		stats = DataService.predictStats(player),
+	})
 end
 
 function PredictService.start()

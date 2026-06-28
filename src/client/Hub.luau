@@ -274,14 +274,23 @@ local function buildPredictRows()
 	end
 end
 
--- crowd state from the server -> redraw bars
+-- crowd state from the server -> redraw bars + update the streak/record header
 Net.getEvent(Net.Events.PredictState).OnClientEvent:Connect(function(payload: unknown)
 	local info = payload :: {
 		picks: { [string]: string }?,
 		tallies: { [string]: { home: number, away: number } }?,
+		stats: { wins: number, streak: number }?,
 	}
 	predictMyPicks = info.picks or {}
 	predictTallies = info.tallies or {}
+	local stats = info.stats
+	if stats then
+		predictSub.Text = string.format(
+			"🔥 %d streak  ·  ✅ %d correct  —  pick winners, see the crowd, build your streak!",
+			stats.streak,
+			stats.wins
+		)
+	end
 	if predictScreen.Enabled then
 		buildPredictRows()
 	end

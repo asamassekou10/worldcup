@@ -74,6 +74,9 @@ local PROFILE_TEMPLATE: Types.ProfileData = {
 	RookieDone = {}, -- FTUE: set of completed rookie-reward step keys (gift/pack/mode)
 	FieldCoinDay = 0, -- day index the field-coin daily total belongs to
 	FieldCoinToday = 0, -- coins collected from the hub field today (capped, anti-farm)
+	PredictWins = 0, -- total correct match predictions (lifetime)
+	PredictStreak = 0, -- current run of consecutive correct predictions
+	PredictSettled = {}, -- set of fixture keys already settled (paid/streaked) -- anti double-pay
 }
 
 -- Systems that need a player's profile (e.g. cosmetics applying the equipped
@@ -512,6 +515,72 @@ end
 
 -- Record a match prediction (fixtureKey -> picked nation). Pays a one-time daily
 -- participation reward for engaging with the booth.
+-- Prediction stats for the panel header (current streak + lifetime correct count).
+function DataService.predictStats(player: Player): { wins: number, streak: number }
+	local profile = profiles[player]
+	if not profile or not profile:IsActive() then
+		return { wins = 0, streak = 0 }
+	end
+	return { wins = profile.Data.PredictWins, streak = profile.Data.PredictStreak }
+end
+
+-- Settle any of the player's predictions whose result is now known. `winnerOf(key)` returns the
+-- winning nation id (or "draw"), or nil if the match isn't decided yet. Correct picks pay an
+-- escalating streak reward; a miss resets the streak. Idempotent via PredictSettled (no double-pay).
+local PREDICT_BASE = 60
+local PREDICT_STREAK_STEP = 20
+local PREDICT_STREAK_CAP = 8
+function DataService.settlePredictions(player: Player, winnerOf: (string) -> string?)
+	local profile = profiles[player]
+	if not profile or not profile:IsActive() then
+		return
+	end
+	local data = profile.Data
+	-- gather unsettled, decided predictions, in chronological order (the key starts with the date)
+	local pending: { { key: string, pick: string, winner: string } } = {}
+	for key, pick in data.Predictions do
+		if not data.PredictSettled[key] then
+			local w = winnerOf(key)
+			if w then
+				table.insert(pending, { key = key, pick = pick, winner = w })
+			end
+		end
+	end
+	if #pending == 0 then
+		return
+	end
+	table.sort(pending, function(a, b)
+		return a.key < b.key
+	end)
+	for _, p in pending do
+		data.PredictSettled[p.key] = true
+		if p.pick == p.winner then
+			data.PredictStreak += 1
+			data.PredictWins += 1
+			local reward = PREDICT_BASE
+				+ PREDICT_STREAK_STEP * math.min(data.PredictStreak, PREDICT_STREAK_CAP)
+			data.Coins += reward
+			local nation = Catalog.get(p.winner)
+			notify(
+				player,
+				string.format(
+					"✅ Called it — %s won! +%d coins (🔥 %d streak)",
+					if nation then nation.name else p.winner,
+					reward,
+					data.PredictStreak
+				)
+			)
+		else
+			if data.PredictStreak > 0 then
+				notify(player, "❌ A prediction missed — your streak reset.")
+			end
+			data.PredictStreak = 0
+		end
+	end
+	updateLeaderstats(player)
+	pushToClient(player)
+end
+
 -- The player's current pick for a fixture key (or nil). Used to adjust the crowd tally when a pick
 -- is changed (decrement the old side, increment the new).
 function DataService.getPrediction(player: Player, key: string): string?

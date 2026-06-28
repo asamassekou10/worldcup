@@ -3,6 +3,9 @@
 -- Designers tune the game HERE, not by hunting through gameplay code.
 
 local Config = {
+	-- Admin UserIds (in addition to the place owner / game.CreatorId) allowed to run /result and
+	-- other admin chat commands. Add your UserId here if the game is group-owned.
+	Admins = {} :: { number },
 	-- The goal mouth. Aim is continuous: x in [-1,1], y in [0,1] across this.
 	-- Measured from the Football Pitch model: posts 13.22 studs apart (centre-to-centre),
 	-- post top at Y=8.131, ground at Y=2.41 → height 5.72. Rounded to 1 d.p.
