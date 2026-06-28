@@ -561,7 +561,7 @@ function UI.create(player: Player): Hud
 	-- a new player does. Tapping it opens the nation picker (the shop).
 	local nationChip = Instance.new("TextButton")
 	nationChip.Size = UDim2.fromScale(0.34, 0.06)
-	nationChip.Position = UDim2.new(0.33, 0, 0.185, TOP_INSET)
+	nationChip.Position = UDim2.new(0.33, 0, 0.13, TOP_INSET)
 	nationChip.BackgroundColor3 = Color3.fromRGB(28, 32, 44)
 	nationChip.BackgroundTransparency = 0.1
 	nationChip.Font = Enum.Font.GothamBold

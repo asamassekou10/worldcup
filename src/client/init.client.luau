@@ -1640,15 +1640,15 @@ do
 		gui.DisplayOrder = 23
 		gui.Parent = pg
 		local pill = Instance.new("TextButton")
-		pill.AnchorPoint = Vector2.new(0.5, 0)
-		pill.Position = UDim2.new(0.5, 0, 0, 244)
-		pill.Size = UDim2.fromOffset(360, 36)
+		pill.AnchorPoint = Vector2.new(0, 0)
+		pill.Position = UDim2.fromOffset(12, 282)
+		pill.Size = UDim2.fromOffset(232, 32)
 		pill.BackgroundColor3 = Color3.fromRGB(60, 40, 90)
 		pill.AutoButtonColor = true
 		pill.Font = Enum.Font.GothamBold
 		pill.TextScaled = true
 		pill.TextColor3 = Color3.fromRGB(235, 225, 255)
-		pill.Text = string.format("🔮 %s today — tap to call the winners!", stage)
+		pill.Text = string.format("🔮 %s — tap to predict!", stage)
 		pill.Parent = gui
 		local pc = Instance.new("UICorner")
 		pc.CornerRadius = UDim.new(1, 0)
@@ -1986,9 +1986,9 @@ do
 	gui.Parent = player:WaitForChild("PlayerGui")
 
 	local pill = Instance.new("Frame")
-	pill.AnchorPoint = Vector2.new(0.5, 0)
-	pill.Position = UDim2.new(0.5, 0, 0, 150)
-	pill.Size = UDim2.fromOffset(340, 34)
+	pill.AnchorPoint = Vector2.new(0, 0)
+	pill.Position = UDim2.fromOffset(12, 246)
+	pill.Size = UDim2.fromOffset(232, 30)
 	pill.BackgroundColor3 = Color3.fromRGB(16, 20, 32)
 	pill.BackgroundTransparency = 0.1
 	pill.Visible = false
@@ -2135,9 +2135,9 @@ do
 
 	-- ---------- the launcher button (bottom-center) ----------
 	local btn = Instance.new("TextButton")
-	btn.AnchorPoint = Vector2.new(0.5, 1)
-	btn.Position = UDim2.new(0.5, 0, 1, -16)
-	btn.Size = UDim2.fromOffset(184, 52)
+	btn.AnchorPoint = Vector2.new(1, 0)
+	btn.Position = UDim2.new(1, -12, 0, 12)
+	btn.Size = UDim2.fromOffset(168, 46)
 	btn.AutoButtonColor = false
 	btn.BackgroundColor3 = Color3.fromRGB(38, 44, 62)
 	btn.Font = Enum.Font.GothamBlack
@@ -2189,10 +2189,10 @@ do
 	rounded(dot, 8)
 	stroke(dot, Color3.fromRGB(18, 20, 30), 2)
 	btn.MouseEnter:Connect(function()
-		TweenService:Create(btn, TweenInfo.new(0.12), { Size = UDim2.fromOffset(192, 54) }):Play()
+		TweenService:Create(btn, TweenInfo.new(0.12), { Size = UDim2.fromOffset(176, 48) }):Play()
 	end)
 	btn.MouseLeave:Connect(function()
-		TweenService:Create(btn, TweenInfo.new(0.12), { Size = UDim2.fromOffset(184, 52) }):Play()
+		TweenService:Create(btn, TweenInfo.new(0.12), { Size = UDim2.fromOffset(168, 46) }):Play()
 	end)
 
 	-- ---------- the modal ----------

@@ -348,10 +348,12 @@ function Decor.setup()
 	-- A subtle World Cup crest painted on the centre circle (a gold ring + emblem,
 	-- flat on the pitch -- no image asset needed).
 	do
-		local crestPos = ground(goalXZ0 - g.dir * halfLen, 0.15)
+		-- sit flush on the turf (the SurfaceGui is on the Top face): a thin slab with its top a hair
+		-- above the grass, so the crest reads as painted on the pitch -- not floating above it.
+		local crestPos = ground(goalXZ0 - g.dir * halfLen, 0.03)
 		local crestPart = part(
 			folder,
-			Vector3.new(18, 0.3, 18),
+			Vector3.new(18, 0.1, 18),
 			CFrame.new(crestPos),
 			Color3.fromRGB(255, 255, 255),
 			Enum.Material.SmoothPlastic
