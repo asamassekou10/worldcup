@@ -8,7 +8,6 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
-local Net = require(Shared:WaitForChild("Net"))
 local Config = require(Shared:WaitForChild("Config"))
 local MapLayout = require(Shared:WaitForChild("MapLayout"))
 
@@ -410,16 +409,7 @@ function HubService.start()
 		end
 	end)
 
-	Net.getEvent(Net.Events.Predict).OnServerEvent:Connect(function(player, payload: unknown)
-		if typeof(payload) ~= "table" then
-			return
-		end
-		local data = payload :: { [string]: unknown }
-		local key, pick = data.key, data.pick
-		if typeof(key) == "string" and typeof(pick) == "string" then
-			DataService.recordPrediction(player, key, pick)
-		end
-	end)
+	-- (Predict picks are handled by PredictService, which also tracks the crowd-consensus tally.)
 end
 
 return HubService

@@ -1605,6 +1605,73 @@ hud.showLobby()
 Camera.toLobby() -- start on the default walk-around camera in the plaza
 Warmup.start(hud) -- enable the practice-range prompt (hud lets it hide the lobby)
 Hub.start(hud) -- photo booth, stalls, prediction kiosk prompts
+-- Surface the match predictor in the unified MENU (it was only reachable by walking to the kiosk).
+Hub.onPredictClose = function()
+	setMenuOverlay(false)
+end
+hudMenu.add({
+	icon = "🔮",
+	label = "Predict",
+	color = Color3.fromRGB(195, 155, 255),
+	open = function()
+		setMenuOverlay(true)
+		Hub.openPredict()
+	end,
+})
+
+-- Matchday nudge: on join, if there are World Cup fixtures TODAY, a tappable toast points players
+-- at the predictor -- picks are timeliest and the crowd hook strongest on a matchday. Auto-hides.
+do
+	local WorldCup = require(Shared:WaitForChild("WorldCup"))
+	local pg = player:WaitForChild("PlayerGui")
+	local matches = 0
+	local stage = ""
+	for _, f in WorldCup.fixturesOn(WorldCup.todayISO()) do
+		if not WorldCup.isMilestone(f) then
+			matches += 1
+			stage = f.stage
+		end
+	end
+	if matches > 0 then
+		local gui = Instance.new("ScreenGui")
+		gui.Name = "MatchdayNudge"
+		gui.ResetOnSpawn = false
+		gui.IgnoreGuiInset = true
+		gui.DisplayOrder = 23
+		gui.Parent = pg
+		local pill = Instance.new("TextButton")
+		pill.AnchorPoint = Vector2.new(0.5, 0)
+		pill.Position = UDim2.new(0.5, 0, 0, 244)
+		pill.Size = UDim2.fromOffset(360, 36)
+		pill.BackgroundColor3 = Color3.fromRGB(60, 40, 90)
+		pill.AutoButtonColor = true
+		pill.Font = Enum.Font.GothamBold
+		pill.TextScaled = true
+		pill.TextColor3 = Color3.fromRGB(235, 225, 255)
+		pill.Text = string.format("🔮 %s today — tap to call the winners!", stage)
+		pill.Parent = gui
+		local pc = Instance.new("UICorner")
+		pc.CornerRadius = UDim.new(1, 0)
+		pc.Parent = pill
+		local ps = Instance.new("UIStroke")
+		ps.Color = Color3.fromRGB(195, 155, 255)
+		ps.Thickness = 2
+		ps.Parent = pill
+		local pp = Instance.new("UIPadding")
+		pp.PaddingTop = UDim.new(0, 7)
+		pp.PaddingBottom = UDim.new(0, 7)
+		pp.Parent = pill
+		pill.Activated:Connect(function()
+			gui.Enabled = false
+			setMenuOverlay(true)
+			Hub.openPredict()
+		end)
+		task.delay(10, function()
+			gui.Enabled = false
+		end)
+		table.insert(lobbyHudEls, gui)
+	end
+end
 DecorFX.start()
 Sound.startCrowd() -- stadium ambience loop
 Sound.playMusic() -- lobby entrance song
@@ -2024,6 +2091,7 @@ do
 	local META: { [string]: { desc: string, cat: string } } = {
 		["Play Modes"] = { desc = "Jump into any game mode", cat = "PLAY" },
 		["1V1"] = { desc = "Challenge a player to a duel", cat = "PLAY" },
+		["Predict"] = { desc = "Call the World Cup winners", cat = "PLAY" },
 		["Tournament"] = { desc = "Weekly ladder — win prizes", cat = "PLAY" },
 		["Ranks"] = { desc = "Global leaderboards", cat = "PLAY" },
 		["Club"] = { desc = "Idle coin earner", cat = "COLLECT" },

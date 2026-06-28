@@ -512,6 +512,25 @@ end
 
 -- Record a match prediction (fixtureKey -> picked nation). Pays a one-time daily
 -- participation reward for engaging with the booth.
+-- The player's current pick for a fixture key (or nil). Used to adjust the crowd tally when a pick
+-- is changed (decrement the old side, increment the new).
+function DataService.getPrediction(player: Player, key: string): string?
+	local profile = profiles[player]
+	if not profile or not profile:IsActive() then
+		return nil
+	end
+	return profile.Data.Predictions[key]
+end
+
+-- All of a player's picks (key -> team id), for seeding the prediction panel.
+function DataService.allPredictions(player: Player): { [string]: string }
+	local profile = profiles[player]
+	if not profile or not profile:IsActive() then
+		return {}
+	end
+	return profile.Data.Predictions
+end
+
 function DataService.recordPrediction(player: Player, key: string, pick: string)
 	local profile = profiles[player]
 	if not profile or not profile:IsActive() then

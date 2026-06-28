@@ -14,9 +14,15 @@ local Net = require(Shared:WaitForChild("Net"))
 local WorldCup = require(Shared:WaitForChild("WorldCup"))
 
 local Hub = {}
+Hub.onPredictClose = nil :: (() -> ())? -- set by init.client to restore the lobby HUD on close
 
 local player = Players.LocalPlayer
 local predictEvent = Net.getEvent(Net.Events.Predict)
+local predictRequest = Net.getEvent(Net.Events.PredictRequest)
+
+-- crowd-consensus state, fed by PredictState (server): myPicks[key]=team, tallies[key]={home,away}
+local predictMyPicks: { [string]: string } = {}
+local predictTallies: { [string]: { home: number, away: number } } = {}
 
 local function corner(inst: Instance, r: number)
 	local c = Instance.new("UICorner")
@@ -103,6 +109,7 @@ local predictScreen = Instance.new("ScreenGui")
 predictScreen.Name = "PredictPanel"
 predictScreen.ResetOnSpawn = false
 predictScreen.IgnoreGuiInset = true
+predictScreen.DisplayOrder = 30 -- above the floating lobby banners (so it covers them when open)
 predictScreen.Enabled = false
 predictScreen.Parent = player:WaitForChild("PlayerGui")
 
@@ -136,21 +143,25 @@ predictSub.Font = Enum.Font.GothamMedium
 predictSub.TextScaled = true
 predictSub.TextXAlignment = Enum.TextXAlignment.Left
 predictSub.TextColor3 = Color3.fromRGB(180, 190, 205)
-predictSub.Text = "Correct picks pay out when results are in."
+predictSub.Text =
+	"Pick the winners — and see what the whole crowd thinks. +20 coins/day for picking."
 predictSub.Parent = predictBg
 
 local predictClose = Instance.new("TextButton")
 predictClose.Size = UDim2.fromScale(0.1, 0.07)
 predictClose.Position = UDim2.fromScale(0.84, 0.05)
-predictClose.BackgroundColor3 = Color3.fromRGB(180, 70, 60)
-predictClose.Font = Enum.Font.GothamBlack
+predictClose.BackgroundColor3 = Color3.fromRGB(42, 47, 66)
+predictClose.Font = Enum.Font.GothamBold
 predictClose.TextScaled = true
-predictClose.TextColor3 = Color3.fromRGB(255, 255, 255)
-predictClose.Text = "X"
+predictClose.TextColor3 = Color3.fromRGB(220, 226, 236)
+predictClose.Text = "✕"
 corner(predictClose, 10)
 predictClose.Parent = predictBg
 predictClose.Activated:Connect(function()
 	predictScreen.Enabled = false
+	if Hub.onPredictClose then
+		Hub.onPredictClose()
+	end
 end)
 
 local predictList = Instance.new("ScrollingFrame")
@@ -179,19 +190,27 @@ local function buildPredictRows()
 		if not WorldCup.isMilestone(f) then
 			shown += 1
 			local key = WorldCup.fixtureKey(f)
+			local mine = predictMyPicks[key]
+			local tally = predictTallies[key] or { home = 0, away = 0 }
+			local total = tally.home + tally.away
+			local homePct = if total > 0 then math.floor(tally.home / total * 100 + 0.5) else 50
+			local awayPct = 100 - homePct
+
 			local row = Instance.new("Frame")
-			row.Size = UDim2.new(1, 0, 0, 56)
+			row.Size = UDim2.new(1, 0, 0, 84)
 			row.LayoutOrder = shown
 			row.BackgroundColor3 = Color3.fromRGB(22, 25, 34)
-			corner(row, 8)
+			corner(row, 10)
 			row.Parent = predictList
 
 			local picks: { [string]: TextButton } = {}
 			local function pickButton(nationId: string, xScale: number)
 				local btn = Instance.new("TextButton")
-				btn.Size = UDim2.fromScale(0.47, 0.78)
-				btn.Position = UDim2.fromScale(xScale, 0.11)
-				btn.BackgroundColor3 = Color3.fromRGB(40, 44, 58)
+				btn.Size = UDim2.fromScale(0.47, 0.52)
+				btn.Position = UDim2.fromScale(xScale, 0.08)
+				btn.BackgroundColor3 = if mine == nationId
+					then Color3.fromRGB(40, 170, 90)
+					else Color3.fromRGB(40, 44, 58)
 				btn.Font = Enum.Font.GothamBold
 				btn.TextScaled = true
 				btn.TextColor3 = Color3.fromRGB(235, 235, 235)
@@ -209,6 +228,34 @@ local function buildPredictRows()
 			end
 			pickButton(f.home, 0.02)
 			pickButton(f.away, 0.51)
+
+			-- crowd-consensus bar (the social-proof hook): home% (blue) | away% (orange)
+			local barBg = Instance.new("Frame")
+			barBg.Size = UDim2.fromScale(0.96, 0.26)
+			barBg.Position = UDim2.fromScale(0.02, 0.68)
+			barBg.BackgroundColor3 = Color3.fromRGB(235, 120, 55) -- away colour shows through the right
+			barBg.BorderSizePixel = 0
+			corner(barBg, 6)
+			barBg.Parent = row
+			local homeFill = Instance.new("Frame")
+			homeFill.Size = UDim2.fromScale(homePct / 100, 1)
+			homeFill.BackgroundColor3 = Color3.fromRGB(60, 130, 230)
+			homeFill.BorderSizePixel = 0
+			homeFill.Parent = barBg
+			corner(homeFill, 6)
+			local barText = Instance.new("TextLabel")
+			barText.Size = UDim2.new(1, -12, 1, 0)
+			barText.Position = UDim2.fromOffset(6, 0)
+			barText.BackgroundTransparency = 1
+			barText.Font = Enum.Font.GothamBold
+			barText.TextScaled = true
+			barText.ZIndex = 2
+			barText.TextColor3 = Color3.fromRGB(255, 255, 255)
+			barText.TextStrokeTransparency = 0.5
+			barText.Text = if total > 0
+				then string.format("🌍 %d%%  vs  %d%%  ·  %d picks", homePct, awayPct, total)
+				else "🌍 Be the first to call it!"
+			barText.Parent = barBg
 		end
 	end
 	if shown == 0 then
@@ -225,6 +272,26 @@ local function buildPredictRows()
 		label.Parent = empty
 		empty.Parent = predictList
 	end
+end
+
+-- crowd state from the server -> redraw bars
+Net.getEvent(Net.Events.PredictState).OnClientEvent:Connect(function(payload: unknown)
+	local info = payload :: {
+		picks: { [string]: string }?,
+		tallies: { [string]: { home: number, away: number } }?,
+	}
+	predictMyPicks = info.picks or {}
+	predictTallies = info.tallies or {}
+	if predictScreen.Enabled then
+		buildPredictRows()
+	end
+end)
+
+-- Open the predictor from anywhere (the MENU, the matchday nudge, the kiosk).
+function Hub.openPredict()
+	predictRequest:FireServer() -- pull the latest picks + crowd tallies
+	buildPredictRows()
+	predictScreen.Enabled = true
 end
 
 -- ===== wire prompts =====
@@ -244,8 +311,7 @@ function Hub.start(hud: { openShop: () -> (), openRanks: () -> (), openStore: ()
 		elseif name == "StorePrompt" then
 			hud.openStore()
 		elseif name == "PredictPrompt" then
-			buildPredictRows()
-			predictScreen.Enabled = true
+			Hub.openPredict()
 		end
 	end)
 end

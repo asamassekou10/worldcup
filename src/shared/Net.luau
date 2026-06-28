@@ -55,6 +55,8 @@ Net.Events = {
 
 	-- Prediction booth (hub): client -> server
 	Predict = "Predict", -- { key: string, pick: string } -> record a match prediction
+	PredictRequest = "PredictRequest", -- client -> server: send me today's picks + crowd tallies
+	PredictState = "PredictState", -- server -> client: { picks = {[key]=team}, tallies = {[key]={home,away}} }
 
 	-- Season Pass ("Road to the Final"): server -> client
 	SeasonUpdate = "SeasonUpdate", -- { SeasonXP, SeasonTierGranted, HasPremiumPass, EquippedTitle }
