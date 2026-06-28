@@ -242,7 +242,9 @@
       "Bash(~/.rokit/bin/stylua src/server/ResultsService.luau)",
       "Bash(~/.rokit/bin/selene src/server/ResultsService.luau)",
       "Bash(~/.rokit/bin/stylua src/client/UI.luau src/client/init.client.luau src/server/Decor.luau)",
-      "Bash(~/.rokit/bin/selene src/client/UI.luau src/client/init.client.luau src/server/Decor.luau)"
+      "Bash(~/.rokit/bin/selene src/client/UI.luau src/client/init.client.luau src/server/Decor.luau)",
+      "Bash(~/.rokit/bin/stylua src/server/FieldCoinsService.luau)",
+      "Bash(~/.rokit/bin/selene src/server/FieldCoinsService.luau)"
     ]
   }
 }

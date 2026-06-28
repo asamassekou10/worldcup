@@ -128,18 +128,39 @@ function FieldCoinsService.start()
 		end)
 	end
 
-	for _, t in TS do
-		local plaza = geo.center + geo.side * SIDE + geo.axis * t
-		local activities = geo.center - geo.side * SIDE + geo.axis * t
-		buildCoin(Vector3.new(plaza.X, floorY + 2, plaza.Z))
-		buildCoin(Vector3.new(activities.X, floorY + 2, activities.Z))
+	-- place a coin at (s = studs across from centre, t = studs along the pitch from centre)
+	local function place(s: number, t: number)
+		local p = geo.center + geo.side * s + geo.axis * t
+		buildCoin(Vector3.new(p.X, floorY + 2, p.Z))
 	end
 
-	-- A short trail extending the activities walkway toward the WYR portal (t≈78) -- doubles as
-	-- wayfinding so players "follow the coins" to the Would You Rather mode.
+	-- both touchline walkways
+	for _, t in TS do
+		place(SIDE, t)
+		place(-SIDE, t)
+	end
+
+	-- a trail extending the activities walkway toward the WYR portal (wayfinding to that mode)
 	for _, t in { 56, 64, 72 } do
-		local p = geo.center - geo.side * SIDE + geo.axis * t
-		buildCoin(Vector3.new(p.X, floorY + 2, p.Z))
+		place(-SIDE, t)
+	end
+
+	-- ===== more coins, spread across the map (not just the two edges) =====
+	-- a spine straight down the middle of the pitch
+	for _, t in { -55, -35, -15, 15, 35, 55 } do
+		place(0, t)
+	end
+	-- two rows crossing the pitch, so the coins read as a grid
+	for _, t in { -30, 30 } do
+		for _, s in { -42, -21, 21, 42 } do
+			place(s, t)
+		end
+	end
+	-- the four corners of the apron
+	for _, t in { -64, 64 } do
+		for _, s in { -48, 48 } do
+			place(s, t)
+		end
 	end
 end
 
