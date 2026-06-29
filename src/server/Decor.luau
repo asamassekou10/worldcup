@@ -205,21 +205,8 @@ function Decor.setup()
 		CollectionService:AddTag(flag, "WCFlag")
 	end
 
-	-- Pitch-side advertising boards lining both touchlines, the full field length.
-	local sideX = pitchHalf - 1
-	for _, side in { -1, 1 } do
-		local boards = math.clamp(math.floor((2 * halfLen) / 9), 4, 30)
-		for j = 0, boards do
-			local pos = ground(g.goal + g.right * (sideX * side) - g.dir * (j * 9 + 3), 0.8)
-			part(
-				folder,
-				Vector3.new(8, 1.6, 0.4),
-				CFrame.lookAt(pos, pos - g.right * side),
-				HOST[(j % #HOST) + 1],
-				Enum.Material.SmoothPlastic
-			)
-		end
-	end
+	-- (Touchline ad-boards removed: both touchlines are the hub plaza/activities apron, so the
+	-- blue/red/green boards just cluttered the stalls + gym. The behind-goal boards stay.)
 
 	-- Fan-poster banners of the icon players, raised on poles ABOVE the touchline activity row so
 	-- they read as proper framed posters (gold border + name) and never block the stalls/signs.
@@ -401,9 +388,10 @@ function Decor.setup()
 				fan(Vector3.new(xz.X, gy + 1.1, xz.Z))
 			end
 		end
-		-- Long sides (touchlines): sweep outward across the stand depth + along it.
+		-- Long sides (touchlines): sweep outward across the stand depth + along it. Start a bit out
+		-- (past the plaza/activities apron) so fans only fill the raised stands, not the activity row.
 		for _, side in { -1, 1 } do
-			local d = pitchHalf + 2
+			local d = pitchHalf + 12
 			while d <= pitchHalf + 80 do
 				local a = -(halfLen + 20)
 				while a <= halfLen + 20 do
