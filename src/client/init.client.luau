@@ -3521,13 +3521,13 @@ do
 				clist.Padding = UDim.new(0, 3)
 				clist.Parent = chip
 				local function chipIcon(order: number, image: string, sz: number)
-					local i = Instance.new("ImageLabel")
-					i.LayoutOrder = order
-					i.Size = UDim2.fromOffset(sz, sz)
-					i.BackgroundTransparency = 1
-					i.ScaleType = Enum.ScaleType.Fit
-					i.Image = image
-					i.Parent = chip
+					local ico = Instance.new("ImageLabel")
+					ico.LayoutOrder = order
+					ico.Size = UDim2.fromOffset(sz, sz)
+					ico.BackgroundTransparency = 1
+					ico.ScaleType = Enum.ScaleType.Fit
+					ico.Image = image
+					ico.Parent = chip
 				end
 				local function chipText(order: number, text: string, color: Color3)
 					local t = Instance.new("TextLabel")
