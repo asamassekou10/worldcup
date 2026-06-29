@@ -12,6 +12,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Net = require(Shared:WaitForChild("Net"))
 local WorldCup = require(Shared:WaitForChild("WorldCup"))
+local Config = require(Shared:WaitForChild("Config"))
 
 local Hub = {}
 Hub.onPredictClose = nil :: (() -> ())? -- set by init.client to restore the lobby HUD on close
@@ -124,15 +125,25 @@ local predictPad = Instance.new("UIPadding")
 predictPad.PaddingTop = UDim.new(0, 48)
 predictPad.Parent = predictBg
 
+local predictIconId = Config.Icons.Predict
+if predictIconId and predictIconId ~= "" then
+	local pIcon = Instance.new("ImageLabel")
+	pIcon.BackgroundTransparency = 1
+	pIcon.Position = UDim2.fromScale(0.055, 0.035)
+	pIcon.Size = UDim2.fromScale(0.05, 0.075)
+	pIcon.ScaleType = Enum.ScaleType.Fit
+	pIcon.Image = predictIconId
+	pIcon.Parent = predictBg
+end
 local predictTitle = Instance.new("TextLabel")
 predictTitle.Size = UDim2.fromScale(0.7, 0.08)
-predictTitle.Position = UDim2.fromScale(0.06, 0.04)
+predictTitle.Position = UDim2.fromScale(0.115, 0.04)
 predictTitle.BackgroundTransparency = 1
 predictTitle.Font = Enum.Font.GothamBlack
 predictTitle.TextScaled = true
 predictTitle.TextXAlignment = Enum.TextXAlignment.Left
 predictTitle.TextColor3 = Color3.fromRGB(230, 200, 255)
-predictTitle.Text = "🔮 PREDICT TODAY'S WINNERS"
+predictTitle.Text = "PREDICT TODAY'S WINNERS"
 predictTitle.Parent = predictBg
 
 local predictSub = Instance.new("TextLabel")

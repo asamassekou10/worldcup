@@ -190,6 +190,21 @@ local function headerRule(panel: GuiObject, accent: Color3, y: number)
 	c.Parent = d
 end
 
+-- A small custom icon at the left of a panel header (replaces the emoji prefix). No-op if `iconId`
+-- is blank. Pair with a title shifted right to make room.
+local function headerIcon(parent: GuiObject, iconId: string, y: number)
+	if not iconId or iconId == "" then
+		return
+	end
+	local img = Instance.new("ImageLabel")
+	img.BackgroundTransparency = 1
+	img.Position = UDim2.fromOffset(16, y)
+	img.Size = UDim2.fromOffset(28, 28)
+	img.ScaleType = Enum.ScaleType.Fit
+	img.Image = iconId
+	img.Parent = parent
+end
+
 -- ===== Lobby-HUD visibility: the floating banners (live event, daily objective) are lobby-only
 -- info. They hide whenever the player is in a run OR has a menu/panel open, so they never overlap a
 -- modal. Elements register in lobbyHudEls; panels flip `setMenuOverlay`; runs flip via the events. =
@@ -2591,9 +2606,12 @@ do
 		t.Parent = panel
 		return t
 	end
+	headerIcon(panel, Config.Icons.Club, 13)
 	local titleLbl = mk(14, 28, Enum.Font.GothamBlack, Color3.fromRGB(255, 235, 150), true)
-	titleLbl.Size = UDim2.new(1, -104, 0, 28)
-	titleLbl.Text = "🏟️ FOOTBALL CLUB"
+	titleLbl.Size = UDim2.new(1, -150, 0, 28)
+	titleLbl.Position = UDim2.fromOffset(52, 14)
+	titleLbl.TextXAlignment = Enum.TextXAlignment.Left
+	titleLbl.Text = "FOOTBALL CLUB"
 	local levelLbl = mk(50, 24, Enum.Font.GothamBold, Color3.fromRGB(210, 218, 230), true)
 	local pendingLbl = mk(86, 56, Enum.Font.GothamBlack, Color3.fromRGB(120, 230, 150), true)
 	local capLbl = mk(146, 20, Enum.Font.Gotham, Color3.fromRGB(160, 170, 190), true)
@@ -2736,15 +2754,16 @@ do
 	ps.Parent = panel
 	dressPanel(panel)
 
+	headerIcon(panel, Config.Icons.Cards, 13)
 	local titleLbl = Instance.new("TextLabel")
-	titleLbl.Size = UDim2.new(1, -104, 0, 26)
-	titleLbl.Position = UDim2.fromOffset(16, 14)
+	titleLbl.Size = UDim2.new(1, -150, 0, 26)
+	titleLbl.Position = UDim2.fromOffset(52, 14)
 	titleLbl.BackgroundTransparency = 1
 	titleLbl.Font = Enum.Font.GothamBlack
 	titleLbl.TextScaled = true
 	titleLbl.TextXAlignment = Enum.TextXAlignment.Left
 	titleLbl.TextColor3 = Color3.fromRGB(255, 235, 150)
-	titleLbl.Text = "🃏 MY CARDS"
+	titleLbl.Text = "MY CARDS"
 	titleLbl.Parent = panel
 	headerRule(panel, Color3.fromRGB(255, 235, 150), 46)
 
@@ -2844,7 +2863,7 @@ do
 		for _ in owned do
 			distinct += 1
 		end
-		titleLbl.Text = string.format("🃏 MY CARDS  (%d/%d)", distinct, CardBank.count())
+		titleLbl.Text = string.format("MY CARDS  (%d/%d)", distinct, CardBank.count())
 		for id, t in tiles do
 			local n = owned[id] or 0
 			t.frame.BackgroundTransparency = if n > 0 then 0.05 else 0.65
@@ -3060,15 +3079,16 @@ do
 	ps.Parent = panel
 	dressPanel(panel)
 
+	headerIcon(panel, Config.Icons.Deals, 13)
 	local titleLbl = Instance.new("TextLabel")
-	titleLbl.Size = UDim2.new(1, -104, 0, 26)
-	titleLbl.Position = UDim2.fromOffset(16, 14)
+	titleLbl.Size = UDim2.new(1, -150, 0, 26)
+	titleLbl.Position = UDim2.fromOffset(52, 14)
 	titleLbl.BackgroundTransparency = 1
 	titleLbl.Font = Enum.Font.GothamBlack
 	titleLbl.TextScaled = true
 	titleLbl.TextXAlignment = Enum.TextXAlignment.Left
 	titleLbl.TextColor3 = Color3.fromRGB(140, 230, 170)
-	titleLbl.Text = "🛒 DAILY DEALS"
+	titleLbl.Text = "DAILY DEALS"
 	headerRule(panel, Color3.fromRGB(140, 230, 170), 70)
 	titleLbl.Parent = panel
 
@@ -3302,15 +3322,16 @@ do
 	ps.Parent = panel
 	dressPanel(panel)
 
+	headerIcon(panel, Config.Icons.Tournament, 13)
 	local titleLbl = Instance.new("TextLabel")
-	titleLbl.Size = UDim2.new(1, -104, 0, 26)
-	titleLbl.Position = UDim2.fromOffset(16, 14)
+	titleLbl.Size = UDim2.new(1, -150, 0, 26)
+	titleLbl.Position = UDim2.fromOffset(52, 14)
 	titleLbl.BackgroundTransparency = 1
 	titleLbl.Font = Enum.Font.GothamBlack
 	titleLbl.TextScaled = true
 	titleLbl.TextXAlignment = Enum.TextXAlignment.Left
 	titleLbl.TextColor3 = Color3.fromRGB(255, 215, 120)
-	titleLbl.Text = "🏆 TOURNAMENT"
+	titleLbl.Text = "TOURNAMENT"
 	titleLbl.Parent = panel
 	headerRule(panel, Color3.fromRGB(255, 215, 120), 100)
 
@@ -3551,15 +3572,16 @@ do
 		hudMenu.open()
 	end)
 
+	headerIcon(pickPanel, Config.Icons.Trade, 11)
 	local pkTitle = Instance.new("TextLabel")
-	pkTitle.Size = UDim2.new(1, -104, 0, 28)
-	pkTitle.Position = UDim2.fromOffset(14, 12)
+	pkTitle.Size = UDim2.new(1, -150, 0, 28)
+	pkTitle.Position = UDim2.fromOffset(52, 12)
 	pkTitle.BackgroundTransparency = 1
 	pkTitle.Font = Enum.Font.GothamBlack
 	pkTitle.TextScaled = true
 	pkTitle.TextXAlignment = Enum.TextXAlignment.Left
 	pkTitle.TextColor3 = Color3.fromRGB(150, 200, 255)
-	pkTitle.Text = "🔄 TRADE WITH…"
+	pkTitle.Text = "TRADE WITH…"
 	pkTitle.Parent = pickPanel
 
 	local pkScroll = Instance.new("ScrollingFrame")

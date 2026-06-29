@@ -314,6 +314,21 @@ local function decoratePanel(panel: GuiObject, title: TextLabel, close: GuiButto
 	end
 end
 
+-- A custom icon image at the left of a full-screen panel's title (replaces the emoji prefix). No-op
+-- if `iconId` is blank. The matching title should start at x ~0.115 to leave room.
+local function titleIcon(panel: GuiObject, iconId: string?)
+	if not iconId or iconId == "" then
+		return
+	end
+	local img = Instance.new("ImageLabel")
+	img.BackgroundTransparency = 1
+	img.Position = UDim2.fromScale(0.055, 0.035)
+	img.Size = UDim2.fromScale(0.05, 0.085)
+	img.ScaleType = Enum.ScaleType.Fit
+	img.Image = iconId
+	img.Parent = panel
+end
+
 -- Show a full-screen panel with a quick centred scale-in pop.
 local function showPanel(panel: GuiObject)
 	panel.AnchorPoint = Vector2.new(0.5, 0.5) -- so the scale grows from the centre
@@ -1410,15 +1425,16 @@ function UI.create(player: Player): Hud
 	shopPanel.Parent = screen
 
 	local shopTitle = Instance.new("TextLabel")
-	shopTitle.Size = UDim2.fromScale(0.5, 0.09)
-	shopTitle.Position = UDim2.fromScale(0.06, 0.04)
+	shopTitle.Size = UDim2.fromScale(0.55, 0.09)
+	shopTitle.Position = UDim2.fromScale(0.115, 0.04)
 	shopTitle.BackgroundTransparency = 1
 	shopTitle.Font = Enum.Font.GothamBlack
 	shopTitle.TextScaled = true
 	shopTitle.TextXAlignment = Enum.TextXAlignment.Left
 	shopTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
-	shopTitle.Text = "🌍 CHOOSE YOUR COUNTRY"
+	shopTitle.Text = "CHOOSE YOUR COUNTRY"
 	shopTitle.Parent = shopPanel
+	titleIcon(shopPanel, Config.Icons.Shop)
 
 	local shopCoins = Instance.new("TextLabel")
 	shopCoins.Size = UDim2.fromScale(0.3, 0.07)
@@ -1571,15 +1587,16 @@ function UI.create(player: Player): Hud
 	boardPanel.Parent = screen
 
 	local boardTitle = Instance.new("TextLabel")
-	boardTitle.Size = UDim2.fromScale(0.6, 0.09)
-	boardTitle.Position = UDim2.fromScale(0.06, 0.04)
+	boardTitle.Size = UDim2.fromScale(0.62, 0.09)
+	boardTitle.Position = UDim2.fromScale(0.115, 0.04)
 	boardTitle.BackgroundTransparency = 1
 	boardTitle.Font = Enum.Font.GothamBlack
 	boardTitle.TextScaled = true
 	boardTitle.TextXAlignment = Enum.TextXAlignment.Left
 	boardTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
-	boardTitle.Text = "🏆 WORLD CUP STANDINGS"
+	boardTitle.Text = "WORLD CUP STANDINGS"
 	boardTitle.Parent = boardPanel
+	titleIcon(boardPanel, Config.Icons.Ranks)
 
 	local closeBoard = Instance.new("TextButton")
 	closeBoard.Size = UDim2.fromScale(0.1, 0.07)
@@ -1772,14 +1789,15 @@ function UI.create(player: Player): Hud
 
 	local challengeTitle = Instance.new("TextLabel")
 	challengeTitle.Size = UDim2.fromScale(0.7, 0.09)
-	challengeTitle.Position = UDim2.fromScale(0.06, 0.04)
+	challengeTitle.Position = UDim2.fromScale(0.115, 0.04)
 	challengeTitle.BackgroundTransparency = 1
 	challengeTitle.Font = Enum.Font.GothamBlack
 	challengeTitle.TextScaled = true
 	challengeTitle.TextXAlignment = Enum.TextXAlignment.Left
 	challengeTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
-	challengeTitle.Text = "⚔️ CHALLENGE A PLAYER"
+	challengeTitle.Text = "CHALLENGE A PLAYER"
 	challengeTitle.Parent = challengePanel
+	titleIcon(challengePanel, Config.Icons.OneVOne)
 
 	local closeChallenge = Instance.new("TextButton")
 	closeChallenge.Size = UDim2.fromScale(0.1, 0.07)
@@ -2241,14 +2259,15 @@ function UI.create(player: Player): Hud
 
 	local storeTitle = Instance.new("TextLabel")
 	storeTitle.Size = UDim2.fromScale(0.6, 0.09)
-	storeTitle.Position = UDim2.fromScale(0.06, 0.04)
+	storeTitle.Position = UDim2.fromScale(0.115, 0.04)
 	storeTitle.BackgroundTransparency = 1
 	storeTitle.Font = Enum.Font.GothamBlack
 	storeTitle.TextScaled = true
 	storeTitle.TextXAlignment = Enum.TextXAlignment.Left
 	storeTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
-	storeTitle.Text = "💎 STORE"
+	storeTitle.Text = "STORE"
 	storeTitle.Parent = storePanel
+	titleIcon(storePanel, Config.Icons.Store)
 
 	local closeStore = Instance.new("TextButton")
 	closeStore.Size = UDim2.fromScale(0.1, 0.07)
