@@ -131,10 +131,16 @@ function Decor.setup()
 	local pitchHalf = math.max(halfWidth + 22, Config.Pitch.HalfWidth)
 
 	-- Find the real pitch surface by raycasting straight down, so nothing floats
-	-- regardless of the stadium's heights. Ignore the decor + the markers.
+	-- regardless of the stadium's heights. Ignore the decor + the markers, AND the hub activity
+	-- props -- otherwise the crowd/decor lands ON TOP of the gym equipment, stalls, etc. instead of
+	-- passing through to the turf (which is why fans were appearing inside the Training Zone).
 	local rayParams = RaycastParams.new()
 	rayParams.FilterType = Enum.RaycastFilterType.Exclude
 	local excludes: { Instance } = { folder }
+	local hubProps = workspace:FindFirstChild("HubProps")
+	if hubProps then
+		table.insert(excludes, hubProps)
+	end
 	for _, name in { "Ball", "Keeper" } do
 		local marker = workspace:FindFirstChild(name, true)
 		if marker then
