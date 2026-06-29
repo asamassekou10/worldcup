@@ -2827,7 +2827,7 @@ do
 	scroll.CanvasSize = UDim2.new()
 	scroll.Parent = panel
 	local grid = Instance.new("UIGridLayout")
-	grid.CellSize = UDim2.fromOffset(102, 78)
+	grid.CellSize = UDim2.fromOffset(102, 130)
 	grid.CellPadding = UDim2.fromOffset(8, 8)
 	grid.SortOrder = Enum.SortOrder.LayoutOrder
 	grid.Parent = scroll
@@ -2850,8 +2850,8 @@ do
 		local hasImg = c.image ~= nil and c.image ~= ""
 		if hasImg then
 			local img = Instance.new("ImageLabel")
-			img.Size = UDim2.fromScale(0.92, 0.56)
-			img.Position = UDim2.fromScale(0.04, 0.04)
+			img.Size = UDim2.fromScale(0.94, 0.66)
+			img.Position = UDim2.fromScale(0.03, 0.03)
 			img.BackgroundTransparency = 1
 			img.ScaleType = Enum.ScaleType.Fit
 			img.Image = c.image :: string
@@ -2859,8 +2859,8 @@ do
 			face = img
 		end
 		local nm = Instance.new("TextLabel")
-		nm.Size = if hasImg then UDim2.fromScale(0.92, 0.2) else UDim2.fromScale(0.92, 0.7)
-		nm.Position = if hasImg then UDim2.fromScale(0.04, 0.58) else UDim2.fromScale(0.04, 0.06)
+		nm.Size = if hasImg then UDim2.fromScale(0.92, 0.16) else UDim2.fromScale(0.92, 0.7)
+		nm.Position = if hasImg then UDim2.fromScale(0.04, 0.71) else UDim2.fromScale(0.04, 0.06)
 		nm.BackgroundTransparency = 1
 		nm.Font = Enum.Font.GothamBold
 		nm.TextScaled = true
@@ -2869,8 +2869,8 @@ do
 		nm.Text = c.name
 		nm.Parent = tile
 		local rl = Instance.new("TextLabel")
-		rl.Size = UDim2.fromScale(0.92, 0.22)
-		rl.Position = UDim2.fromScale(0.04, 0.76)
+		rl.Size = UDim2.fromScale(0.92, 0.13)
+		rl.Position = UDim2.fromScale(0.04, 0.87)
 		rl.BackgroundTransparency = 1
 		rl.Font = Enum.Font.GothamBold
 		rl.TextScaled = true

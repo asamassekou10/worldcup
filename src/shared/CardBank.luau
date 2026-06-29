@@ -12,29 +12,74 @@ local CardBank = {}
 -- it falls back to the emoji in `name`.
 export type Card = { id: string, name: string, rarity: string, image: string? }
 
+-- Real player cards (Panini-style art). `image` is the uploaded card face.
 CardBank.Cards = {
 	-- Common
-	{ id = "gk", name = "🧤 Keeper", rarity = "common" },
-	{ id = "def", name = "🛡️ Defender", rarity = "common" },
-	{ id = "mid", name = "⚙️ Midfielder", rarity = "common" },
-	{ id = "str", name = "⚡ Striker", rarity = "common" },
-	{ id = "wing", name = "🏃 Winger", rarity = "common" },
-	{ id = "cap", name = "©️ Captain", rarity = "common" },
-	{ id = "sub", name = "🔁 Super Sub", rarity = "common" },
-	{ id = "fan", name = "📣 Ultra Fan", rarity = "common" },
-	-- Rare (nations)
-	{ id = "brazil", name = "🇧🇷 Brazil", rarity = "rare" },
-	{ id = "argentina", name = "🇦🇷 Argentina", rarity = "rare" },
-	{ id = "france", name = "🇫🇷 France", rarity = "rare" },
-	{ id = "spain", name = "🇪🇸 Spain", rarity = "rare" },
-	{ id = "england", name = "🏴 England", rarity = "rare" },
-	{ id = "germany", name = "🇩🇪 Germany", rarity = "rare" },
-	-- Epic (skills)
-	{ id = "goldenboot", name = "🥇 Golden Boot", rarity = "epic" },
-	{ id = "hattrick", name = "🎩 Hat-Trick", rarity = "epic" },
-	{ id = "panenka", name = "🥄 Panenka", rarity = "epic" },
-	{ id = "bicycle", name = "🚲 Bicycle Kick", rarity = "epic" },
-	-- Legendary (icon players -- the chase cards, with real faces)
+	{
+		id = "jsanchez",
+		name = "J. Sánchez",
+		rarity = "common",
+		image = "rbxassetid://124121751932020",
+	},
+	{ id = "endrick", name = "Endrick", rarity = "common", image = "rbxassetid://75982793168422" },
+	{ id = "barcola", name = "Barcola", rarity = "common", image = "rbxassetid://105312337174258" },
+	{
+		id = "guler",
+		name = "Arda Güler",
+		rarity = "common",
+		image = "rbxassetid://88674121143390",
+	},
+	{
+		id = "aflores",
+		name = "A. Flores",
+		rarity = "common",
+		image = "rbxassetid://111232938371833",
+	},
+	{
+		id = "lothar",
+		name = "Lothar '06",
+		rarity = "common",
+		image = "rbxassetid://86563612568790",
+	},
+	-- Rare
+	{ id = "mahrez", name = "Mahrez", rarity = "rare", image = "rbxassetid://133502500081434" },
+	{
+		id = "doue",
+		name = "Désiré Doué",
+		rarity = "rare",
+		image = "rbxassetid://92755841316363",
+	},
+	{ id = "palmer", name = "Cole Palmer", rarity = "rare", image = "rbxassetid://95310436287327" },
+	{ id = "saka", name = "Saka", rarity = "rare", image = "rbxassetid://122067098059716" },
+	{ id = "bsilva", name = "B. Silva", rarity = "rare", image = "rbxassetid://98625349544542" },
+	{ id = "rabiot", name = "Rabiot", rarity = "rare", image = "rbxassetid://130199718830552" },
+	-- Epic
+	{
+		id = "vinicius",
+		name = "Vinícius Jr",
+		rarity = "epic",
+		image = "rbxassetid://70516307682082",
+	},
+	{
+		id = "bellingham",
+		name = "Bellingham",
+		rarity = "epic",
+		image = "rbxassetid://104346068882335",
+	},
+	{
+		id = "brunof",
+		name = "B. Fernandes",
+		rarity = "epic",
+		image = "rbxassetid://86873227056935",
+	},
+	{
+		id = "dibu",
+		name = "Dibu Martínez",
+		rarity = "epic",
+		image = "rbxassetid://81951799268689",
+	},
+	-- Legendary (the chase cards)
+	{ id = "pele", name = "Pelé", rarity = "legendary", image = "rbxassetid://99401503798170" },
 	{ id = "goat", name = "Messi", rarity = "legendary", image = Config.Icons.StickerMessi },
 	{ id = "maestro", name = "Ronaldo", rarity = "legendary", image = Config.Icons.StickerRonaldo },
 	{
