@@ -49,18 +49,30 @@ local function part(
 	return p
 end
 
-local function sign(parent: BasePart, text: string, color: Color3)
+local function sign(parent: BasePart, text: string, color: Color3, iconId: string?)
+	local hasIcon = iconId ~= nil and iconId ~= ""
 	local billboard = Instance.new("BillboardGui")
-	billboard.Size = UDim2.fromOffset(150, 40)
+	billboard.Size = UDim2.fromOffset(if hasIcon then 184 else 150, 40)
 	billboard.StudsOffsetWorldSpace = Vector3.new(0, 4.2, 0)
 	billboard.MaxDistance = 45 -- fade out up close so they don't blast the screen
 	billboard.AlwaysOnTop = false -- occlude properly + shrink with distance
 	billboard.Parent = parent
+	if hasIcon then
+		local icon = Instance.new("ImageLabel")
+		icon.Size = UDim2.fromOffset(38, 38)
+		icon.Position = UDim2.fromOffset(0, 1)
+		icon.BackgroundTransparency = 1
+		icon.ScaleType = Enum.ScaleType.Fit
+		icon.Image = iconId :: string
+		icon.Parent = billboard
+	end
 	local label = Instance.new("TextLabel")
-	label.Size = UDim2.fromScale(1, 1)
+	label.Size = if hasIcon then UDim2.new(1, -44, 1, 0) else UDim2.fromScale(1, 1)
+	label.Position = if hasIcon then UDim2.fromOffset(44, 0) else UDim2.fromScale(0, 0)
 	label.BackgroundTransparency = 1
 	label.Font = Enum.Font.GothamBlack
 	label.TextScaled = true
+	label.TextXAlignment = if hasIcon then Enum.TextXAlignment.Left else Enum.TextXAlignment.Center
 	label.TextColor3 = color
 	label.TextStrokeTransparency = 0.3
 	label.Text = text
@@ -144,7 +156,8 @@ local function build()
 		label: string,
 		name: string,
 		action: string,
-		color: Color3
+		color: Color3,
+		iconId: string?
 	)
 		local base = ground(Vector3.new(anchor.Position.X, 0, anchor.Position.Z))
 		local rot = anchor.Rotation
@@ -170,7 +183,7 @@ local function build()
 				Enum.Material.SmoothPlastic
 			)
 		end
-		sign(anchorPart :: BasePart, label, Color3.fromRGB(255, 255, 255))
+		sign(anchorPart :: BasePart, label, Color3.fromRGB(255, 255, 255), iconId)
 		prompt(anchorPart :: BasePart, name, action, "")
 	end
 
@@ -179,26 +192,29 @@ local function build()
 	stall(
 		plazaCF("shop"),
 		Config.Models.StandShop,
-		"🛒 SHOP",
+		"SHOP",
 		"ShopPrompt",
 		"Open Shop",
-		Color3.fromRGB(46, 110, 70)
+		Color3.fromRGB(46, 110, 70),
+		Config.Icons.Shop
 	)
 	stall(
 		plazaCF("ranks"),
 		Config.Models.StandRanks,
-		"🏆 RANKS",
+		"RANKS",
 		"RanksPrompt",
 		"Open Ranks",
-		Color3.fromRGB(60, 70, 110)
+		Color3.fromRGB(60, 70, 110),
+		Config.Icons.Ranks
 	)
 	stall(
 		plazaCF("store"),
 		Config.Models.StandStore,
-		"💎 STORE",
+		"STORE",
 		"StorePrompt",
 		"Open Store",
-		Color3.fromRGB(110, 70, 130)
+		Color3.fromRGB(110, 70, 130),
+		Config.Icons.Store
 	)
 
 	-- The ice-cream cart is a FREE TREAT stand on the activities (-side) row: walk up
@@ -235,8 +251,8 @@ local function build()
 			Color3.fromRGB(40, 60, 110),
 			Enum.Material.SmoothPlastic
 		)
-		sign(desk, "🔮 PREDICT", Color3.fromRGB(230, 200, 255))
-		prompt(desk, "PredictPrompt", "Predict Matches", "🔮 Match Predictor")
+		sign(desk, "PREDICT", Color3.fromRGB(230, 200, 255), Config.Icons.Predict)
+		prompt(desk, "PredictPrompt", "Predict Matches", "Match Predictor")
 	end
 
 	-- Trophy photo booth REMOVED — the Warm-Up treadmills sit at this plaza spot now
