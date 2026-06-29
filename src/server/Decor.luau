@@ -215,48 +215,77 @@ function Decor.setup()
 		end
 	end
 
-	-- Giant fan posters of the icon players, standing just outside each touchline facing the pitch.
+	-- Fan-poster banners of the icon players, raised on poles ABOVE the touchline activity row so
+	-- they read as proper framed posters (gold border + name) and never block the stalls/signs.
 	do
-		local STICKERS = {
-			Config.Icons.StickerMessi,
-			Config.Icons.StickerRonaldo,
-			Config.Icons.StickerMbappe,
-			Config.Icons.StickerNeymar,
+		local POSTERS = {
+			{ img = Config.Icons.StickerMessi, name = "MESSI" },
+			{ img = Config.Icons.StickerRonaldo, name = "RONALDO" },
+			{ img = Config.Icons.StickerMbappe, name = "MBAPPÉ" },
+			{ img = Config.Icons.StickerNeymar, name = "NEYMAR" },
 		}
 		local idx = 0
 		for _, side in { -1, 1 } do
-			for _, frac in { 0.55, 1.45 } do
+			for _, frac in { 0.5, 1.5 } do
 				idx += 1
-				local img = STICKERS[idx]
-				if img and img ~= "" then
+				local p = POSTERS[idx]
+				if p.img and p.img ~= "" then
 					local base = g.goal
-						+ g.right * ((pitchHalf + 6) * side)
+						+ g.right * ((pitchHalf + 9) * side)
 						- g.dir * (halfLen * frac)
-					local centre = ground(base, 10)
+					-- a support pole from the turf up to the banner
+					part(
+						folder,
+						Vector3.new(0.8, 17, 0.8),
+						CFrame.new(ground(base, 8.5)),
+						Color3.fromRGB(60, 66, 78),
+						Enum.Material.Metal
+					)
+					local centre = ground(base, 18)
 					local board = part(
 						folder,
-						Vector3.new(13, 17, 0.6),
+						Vector3.new(11, 14, 0.6),
 						CFrame.lookAt(centre, centre - g.right * side),
-						Color3.fromRGB(16, 18, 28),
+						Color3.fromRGB(18, 24, 46),
 						Enum.Material.SmoothPlastic
 					)
-					-- image on BOTH broad faces so it reads regardless of which way the board turned
+					-- both broad faces, so it reads from either direction
 					for _, f in { Enum.NormalId.Front, Enum.NormalId.Back } do
 						local sg = Instance.new("SurfaceGui")
 						sg.Face = f
-						sg.CanvasSize = Vector2.new(420, 540)
+						sg.CanvasSize = Vector2.new(440, 560)
 						sg.Parent = board
 						local frame = Instance.new("Frame")
 						frame.Size = UDim2.fromScale(1, 1)
-						frame.BackgroundColor3 = Color3.fromRGB(16, 18, 28)
+						frame.BackgroundColor3 = Color3.fromRGB(26, 40, 86)
 						frame.Parent = sg
+						local grad = Instance.new("UIGradient")
+						grad.Color = ColorSequence.new(
+							Color3.fromRGB(42, 66, 140),
+							Color3.fromRGB(14, 20, 44)
+						)
+						grad.Rotation = 90
+						grad.Parent = frame
+						local border = Instance.new("UIStroke")
+						border.Color = Color3.fromRGB(255, 210, 90)
+						border.Thickness = 9
+						border.Parent = frame
 						local pic = Instance.new("ImageLabel")
-						pic.Size = UDim2.fromScale(0.9, 0.9)
-						pic.Position = UDim2.fromScale(0.05, 0.05)
+						pic.Size = UDim2.fromScale(0.9, 0.74)
+						pic.Position = UDim2.fromScale(0.05, 0.04)
 						pic.BackgroundTransparency = 1
 						pic.ScaleType = Enum.ScaleType.Fit
-						pic.Image = img
+						pic.Image = p.img
 						pic.Parent = frame
+						local nm = Instance.new("TextLabel")
+						nm.Size = UDim2.fromScale(0.92, 0.16)
+						nm.Position = UDim2.fromScale(0.04, 0.8)
+						nm.BackgroundTransparency = 1
+						nm.Font = Enum.Font.GothamBlack
+						nm.TextScaled = true
+						nm.TextColor3 = Color3.fromRGB(255, 215, 100)
+						nm.Text = p.name
+						nm.Parent = frame
 					end
 				end
 			end
