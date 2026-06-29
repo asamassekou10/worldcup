@@ -254,8 +254,15 @@ local Config = {
 		Cards = "rbxassetid://76036891510793",
 		Deals = "rbxassetid://89021322067133",
 		Predict = "rbxassetid://85029747925906",
-		Tournament = "", -- not provided yet -> keeps 🏆 emoji
-		Trade = "", -- not provided yet -> keeps 🔄 emoji
+		Tournament = "rbxassetid://84609144818102",
+		Trade = "rbxassetid://94316580933281",
+		-- Decorative art (stickers / logos) for world decor + card faces.
+		WorldCupLogo = "rbxassetid://73046896092396",
+		StickerMessiTrophy = "rbxassetid://110731255568058",
+		StickerMessi = "rbxassetid://134542975399832",
+		StickerRonaldo = "rbxassetid://139831650782838",
+		StickerMbappe = "rbxassetid://103771673024643",
+		StickerNeymar = "rbxassetid://115954461509878",
 	},
 }
 

@@ -376,15 +376,27 @@ function Decor.setup()
 		rs.Transparency = 0.15
 		rs.Parent = ring
 		ring.Parent = sg
-		local emblem = Instance.new("TextLabel")
-		emblem.Size = UDim2.fromScale(0.7, 0.7)
-		emblem.Position = UDim2.fromScale(0.15, 0.15)
-		emblem.BackgroundTransparency = 1
-		emblem.Font = Enum.Font.GothamBlack
-		emblem.TextScaled = true
-		emblem.TextColor3 = Color3.fromRGB(255, 215, 100)
-		emblem.Text = "🏆\n2026"
-		emblem.Parent = sg
+		local logo = Config.Icons.WorldCupLogo
+		if logo and logo ~= "" then
+			-- the real World Cup logo painted in the centre circle
+			local emblem = Instance.new("ImageLabel")
+			emblem.Size = UDim2.fromScale(0.74, 0.74)
+			emblem.Position = UDim2.fromScale(0.13, 0.13)
+			emblem.BackgroundTransparency = 1
+			emblem.ScaleType = Enum.ScaleType.Fit
+			emblem.Image = logo
+			emblem.Parent = sg
+		else
+			local emblem = Instance.new("TextLabel")
+			emblem.Size = UDim2.fromScale(0.7, 0.7)
+			emblem.Position = UDim2.fromScale(0.15, 0.15)
+			emblem.BackgroundTransparency = 1
+			emblem.Font = Enum.Font.GothamBlack
+			emblem.TextScaled = true
+			emblem.TextColor3 = Color3.fromRGB(255, 215, 100)
+			emblem.Text = "🏆\n2026"
+			emblem.Parent = sg
+		end
 	end
 
 	-- Floodlight pylons down both touchlines. In daylight they're mostly structural
