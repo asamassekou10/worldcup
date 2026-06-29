@@ -215,6 +215,54 @@ function Decor.setup()
 		end
 	end
 
+	-- Giant fan posters of the icon players, standing just outside each touchline facing the pitch.
+	do
+		local STICKERS = {
+			Config.Icons.StickerMessi,
+			Config.Icons.StickerRonaldo,
+			Config.Icons.StickerMbappe,
+			Config.Icons.StickerNeymar,
+		}
+		local idx = 0
+		for _, side in { -1, 1 } do
+			for _, frac in { 0.55, 1.45 } do
+				idx += 1
+				local img = STICKERS[idx]
+				if img and img ~= "" then
+					local base = g.goal
+						+ g.right * ((pitchHalf + 6) * side)
+						- g.dir * (halfLen * frac)
+					local centre = ground(base, 10)
+					local board = part(
+						folder,
+						Vector3.new(13, 17, 0.6),
+						CFrame.lookAt(centre, centre - g.right * side),
+						Color3.fromRGB(16, 18, 28),
+						Enum.Material.SmoothPlastic
+					)
+					-- image on BOTH broad faces so it reads regardless of which way the board turned
+					for _, f in { Enum.NormalId.Front, Enum.NormalId.Back } do
+						local sg = Instance.new("SurfaceGui")
+						sg.Face = f
+						sg.CanvasSize = Vector2.new(420, 540)
+						sg.Parent = board
+						local frame = Instance.new("Frame")
+						frame.Size = UDim2.fromScale(1, 1)
+						frame.BackgroundColor3 = Color3.fromRGB(16, 18, 28)
+						frame.Parent = sg
+						local pic = Instance.new("ImageLabel")
+						pic.Size = UDim2.fromScale(0.9, 0.9)
+						pic.Position = UDim2.fromScale(0.05, 0.05)
+						pic.BackgroundTransparency = 1
+						pic.ScaleType = Enum.ScaleType.Fit
+						pic.Image = img
+						pic.Parent = frame
+					end
+				end
+			end
+		end
+	end
+
 	-- Atmosphere: colored smoke rising from the ground behind the goal corners.
 	for _, side in { -1, 1 } do
 		local emitterPart = part(

@@ -13,6 +13,7 @@ local player = Players.LocalPlayer
 -- ===== Branded loading screen (shown immediately, faded out once ready) =====
 local function buildLoadingScreen(): ScreenGui
 	local Theme = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Theme"))
+	local LoadConfig = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"))
 	local gui = Instance.new("ScreenGui")
 	gui.Name = "PenaltyKingsLoading"
 	gui.IgnoreGuiInset = true
@@ -26,9 +27,20 @@ local function buildLoadingScreen(): ScreenGui
 	grad.Color = ColorSequence.new(Color3.fromRGB(22, 30, 46), Theme.Bg)
 	grad.Rotation = 90
 	grad.Parent = bg
+	-- hero image: a champion lifting the trophy, sets the tone while the stadium loads
+	local heroId = LoadConfig.Icons.StickerMessiTrophy
+	if heroId and heroId ~= "" then
+		local hero = Instance.new("ImageLabel")
+		hero.Size = UDim2.fromScale(0.5, 0.34)
+		hero.Position = UDim2.fromScale(0.25, 0.04)
+		hero.BackgroundTransparency = 1
+		hero.ScaleType = Enum.ScaleType.Fit
+		hero.Image = heroId
+		hero.Parent = bg
+	end
 	local logo = Instance.new("TextLabel")
-	logo.Size = UDim2.fromScale(0.7, 0.14)
-	logo.Position = UDim2.fromScale(0.15, 0.4)
+	logo.Size = UDim2.fromScale(0.7, 0.12)
+	logo.Position = UDim2.fromScale(0.15, 0.42)
 	logo.BackgroundTransparency = 1
 	logo.Font = Theme.FontTitle
 	logo.TextScaled = true
