@@ -238,6 +238,25 @@ local Config = {
 		ChoicesCollector = 0, -- collect 10 legends in the Choices runner (create tomorrow)
 		ChoicesAllLegends = 0, -- collect every legend (create tomorrow)
 	},
+
+	-- Custom UI icons (uploaded PNGs). "" = fall back to the emoji. Wire new ones here in one place.
+	Icons = {
+		Coin = "rbxassetid://131687502415517",
+		Level = "rbxassetid://105574866507867",
+		CardPack = "rbxassetid://121616034306658",
+		-- MENU tiles
+		PlayModes = "rbxassetid://80101525689020",
+		Shop = "rbxassetid://82014163111782",
+		Ranks = "rbxassetid://71511453609012",
+		Store = "rbxassetid://131061543515245",
+		OneVOne = "rbxassetid://116958908789334",
+		Club = "rbxassetid://103397255714261",
+		Cards = "rbxassetid://76036891510793",
+		Deals = "rbxassetid://89021322067133",
+		Predict = "rbxassetid://85029747925906",
+		Tournament = "", -- not provided yet -> keeps 🏆 emoji
+		Trade = "", -- not provided yet -> keeps 🔄 emoji
+	},
 }
 
 return Config

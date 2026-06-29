@@ -2099,6 +2099,20 @@ do
 		["Shop"] = { desc = "Represent your nation", cat = "SHOP" },
 		["Store"] = { desc = "Premium perks & coins", cat = "SHOP" },
 	}
+	-- custom uploaded icon per tile ("" -> keep the emoji). Edit Config.Icons to add/replace.
+	local MENU_ICONS: { [string]: string } = {
+		["Play Modes"] = Config.Icons.PlayModes,
+		["Shop"] = Config.Icons.Shop,
+		["Ranks"] = Config.Icons.Ranks,
+		["Store"] = Config.Icons.Store,
+		["1V1"] = Config.Icons.OneVOne,
+		["Club"] = Config.Icons.Club,
+		["Cards"] = Config.Icons.Cards,
+		["Daily Deals"] = Config.Icons.Deals,
+		["Tournament"] = Config.Icons.Tournament,
+		["Trade"] = Config.Icons.Trade,
+		["Predict"] = Config.Icons.Predict,
+	}
 	local ACCENT = Color3.fromRGB(90, 200, 120)
 	local INK = Color3.fromRGB(232, 237, 248)
 	local MUTE = Color3.fromRGB(150, 160, 180)
@@ -2302,19 +2316,37 @@ do
 		tile.Parent = card
 		rounded(tile, 11)
 		stroke(tile, color, 1, 0.45)
-		local emoji = Instance.new("TextLabel")
-		emoji.Size = UDim2.fromScale(1, 1)
-		emoji.BackgroundTransparency = 1
-		emoji.Font = Enum.Font.GothamBlack
-		emoji.TextScaled = true
-		emoji.Text = item.icon
-		emoji.Parent = tile
-		local ep = Instance.new("UIPadding")
-		ep.PaddingTop = UDim.new(0, 8)
-		ep.PaddingBottom = UDim.new(0, 8)
-		ep.PaddingLeft = UDim.new(0, 8)
-		ep.PaddingRight = UDim.new(0, 8)
-		ep.Parent = emoji
+		local iconId = MENU_ICONS[item.label]
+		if iconId and iconId ~= "" then
+			-- custom uploaded icon
+			local img = Instance.new("ImageLabel")
+			img.Size = UDim2.fromScale(1, 1)
+			img.BackgroundTransparency = 1
+			img.Image = iconId
+			img.ScaleType = Enum.ScaleType.Fit
+			img.Parent = tile
+			local ip = Instance.new("UIPadding")
+			ip.PaddingTop = UDim.new(0, 6)
+			ip.PaddingBottom = UDim.new(0, 6)
+			ip.PaddingLeft = UDim.new(0, 6)
+			ip.PaddingRight = UDim.new(0, 6)
+			ip.Parent = img
+		else
+			-- emoji fallback
+			local emoji = Instance.new("TextLabel")
+			emoji.Size = UDim2.fromScale(1, 1)
+			emoji.BackgroundTransparency = 1
+			emoji.Font = Enum.Font.GothamBlack
+			emoji.TextScaled = true
+			emoji.Text = item.icon
+			emoji.Parent = tile
+			local ep = Instance.new("UIPadding")
+			ep.PaddingTop = UDim.new(0, 8)
+			ep.PaddingBottom = UDim.new(0, 8)
+			ep.PaddingLeft = UDim.new(0, 8)
+			ep.PaddingRight = UDim.new(0, 8)
+			ep.Parent = emoji
+		end
 
 		local name = Instance.new("TextLabel")
 		name.Position = UDim2.fromOffset(66, 12)
