@@ -154,7 +154,7 @@ predictClose.BackgroundColor3 = Color3.fromRGB(42, 47, 66)
 predictClose.Font = Enum.Font.GothamBold
 predictClose.TextScaled = true
 predictClose.TextColor3 = Color3.fromRGB(220, 226, 236)
-predictClose.Text = "✕"
+predictClose.Text = "X"
 corner(predictClose, 10)
 predictClose.Parent = predictBg
 predictClose.Activated:Connect(function()

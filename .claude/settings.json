@@ -248,7 +248,16 @@
       "Bash(~/.rokit/bin/stylua src/client/init.client.luau src/shared/Config.luau)",
       "Bash(~/.rokit/bin/selene src/client/init.client.luau src/shared/Config.luau)",
       "Bash(~/.rokit/bin/stylua src/shared/Config.luau src/server/Decor.luau)",
-      "Bash(~/.rokit/bin/selene src/shared/Config.luau src/server/Decor.luau)"
+      "Bash(~/.rokit/bin/selene src/shared/Config.luau src/server/Decor.luau)",
+      "Bash(awk -F: '$1>=2799 && $1<=2868')",
+      "Bash(~/.rokit/bin/stylua src/shared/CardBank.luau src/client/init.client.luau)",
+      "Bash(~/.rokit/bin/selene src/shared/CardBank.luau src/client/init.client.luau)",
+      "Bash(~/.rokit/bin/stylua src/server/Decor.luau src/client/init.client.luau)",
+      "Bash(~/.rokit/bin/selene src/server/Decor.luau src/client/init.client.luau)",
+      "Bash(~/.rokit/bin/stylua src/server/Decor.luau)",
+      "Bash(perl -CSD -i -pe 's/\\\\x{2715}/X/g' src/client/Hub.luau src/client/UI.luau src/client/init.client.luau)",
+      "Bash(~/.rokit/bin/stylua src/client/Hub.luau src/client/UI.luau src/client/init.client.luau)",
+      "Bash(~/.rokit/bin/selene src/client/Hub.luau src/client/UI.luau src/client/init.client.luau)"
     ]
   }
 }

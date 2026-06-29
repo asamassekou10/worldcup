@@ -984,7 +984,7 @@ do
 	closeX.Font = Enum.Font.GothamBold
 	closeX.TextScaled = true
 	closeX.TextColor3 = Color3.fromRGB(220, 226, 236)
-	closeX.Text = "✕"
+	closeX.Text = "X"
 	closeX.ZIndex = 20
 	closeX.Parent = backdrop
 	local closeXc = Instance.new("UICorner")
@@ -2283,7 +2283,7 @@ do
 	closeBtn.Font = Enum.Font.GothamBold
 	closeBtn.TextScaled = true
 	closeBtn.TextColor3 = MUTE
-	closeBtn.Text = "✕"
+	closeBtn.Text = "X"
 	closeBtn.Parent = panel
 	rounded(closeBtn, 17)
 
@@ -3670,7 +3670,7 @@ do
 	ivNo.Font = Enum.Font.GothamBlack
 	ivNo.TextScaled = true
 	ivNo.TextColor3 = Color3.fromRGB(255, 255, 255)
-	ivNo.Text = "✕ DECLINE"
+	ivNo.Text = "X DECLINE"
 	ivNo.Parent = invite
 	rounded(ivNo, 8)
 	ivYes.Activated:Connect(function()
@@ -3793,7 +3793,7 @@ do
 	cancelBtn.Font = Enum.Font.GothamBlack
 	cancelBtn.TextScaled = true
 	cancelBtn.TextColor3 = Color3.fromRGB(255, 170, 170)
-	cancelBtn.Text = "✕ CANCEL"
+	cancelBtn.Text = "X CANCEL"
 	cancelBtn.Parent = win
 	rounded(cancelBtn, 10)
 
@@ -4126,7 +4126,7 @@ do
 	rookieClose.Font = Enum.Font.GothamBold
 	rookieClose.TextScaled = true
 	rookieClose.TextColor3 = Color3.fromRGB(220, 226, 236)
-	rookieClose.Text = "✕"
+	rookieClose.Text = "X"
 	rookieClose.Parent = panel
 	local rcCorner = Instance.new("UICorner")
 	rcCorner.CornerRadius = UDim.new(0, 8)
@@ -4316,7 +4316,7 @@ do
 	closeBtn.Font = Enum.Font.GothamBold
 	closeBtn.TextScaled = true
 	closeBtn.TextColor3 = Color3.fromRGB(220, 226, 236)
-	closeBtn.Text = "✕"
+	closeBtn.Text = "X"
 	closeBtn.Parent = panel
 	local cbc = Instance.new("UICorner")
 	cbc.CornerRadius = UDim.new(0, 8)

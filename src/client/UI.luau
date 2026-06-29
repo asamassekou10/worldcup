@@ -2007,7 +2007,7 @@ function UI.create(player: Player): Hud
 	inviteDecline.Font = Enum.Font.GothamBlack
 	inviteDecline.TextScaled = true
 	inviteDecline.TextColor3 = Color3.fromRGB(255, 255, 255)
-	inviteDecline.Text = "✕ DECLINE"
+	inviteDecline.Text = "X DECLINE"
 	inviteDecline.ZIndex = 60
 	corner(inviteDecline, 10)
 	inviteDecline.Parent = invitePopup
