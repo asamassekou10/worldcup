@@ -799,13 +799,14 @@ function UI.create(player: Player): Hud
 		local barBg = Instance.new("Frame")
 		barBg.Size = UDim2.fromScale(0.72, 0.05)
 		barBg.Position = UDim2.fromScale(0.04, y + 0.09)
-		barBg.BackgroundColor3 = Color3.fromRGB(25, 27, 35)
-		corner(barBg, 6)
+		barBg.BackgroundColor3 = Color3.fromRGB(46, 52, 70) -- visible track (was near-black)
+		corner(barBg, 8)
 		barBg.Parent = questsCard
 		local fill = Instance.new("Frame")
 		fill.Size = UDim2.fromScale(0, 1)
 		fill.BackgroundColor3 = ACCENT
-		corner(fill, 6)
+		corner(fill, 8)
+		gradient(fill, Theme.Gold, ACCENT, 0)
 		fill.Parent = barBg
 		questFills[i] = fill
 
@@ -1450,13 +1451,20 @@ function UI.create(player: Player): Hud
 	shopTitle.Parent = shopPanel
 	titleIcon(shopPanel, Config.Icons.Shop)
 
+	local shopCoinIcon = Instance.new("ImageLabel")
+	shopCoinIcon.Size = UDim2.fromScale(0.035, 0.07)
+	shopCoinIcon.Position = UDim2.fromScale(0.6, 0.05)
+	shopCoinIcon.BackgroundTransparency = 1
+	shopCoinIcon.ScaleType = Enum.ScaleType.Fit
+	shopCoinIcon.Image = Config.Icons.Coin
+	shopCoinIcon.Parent = shopPanel
 	local shopCoins = Instance.new("TextLabel")
-	shopCoins.Size = UDim2.fromScale(0.3, 0.07)
-	shopCoins.Position = UDim2.fromScale(0.5, 0.05)
+	shopCoins.Size = UDim2.fromScale(0.14, 0.07)
+	shopCoins.Position = UDim2.fromScale(0.645, 0.05)
 	shopCoins.BackgroundTransparency = 1
 	shopCoins.Font = Enum.Font.GothamBold
 	shopCoins.TextScaled = true
-	shopCoins.TextXAlignment = Enum.TextXAlignment.Right
+	shopCoins.TextXAlignment = Enum.TextXAlignment.Left
 	shopCoins.TextColor3 = Color3.fromRGB(240, 200, 40)
 	shopCoins.Text = ""
 	shopCoins.Parent = shopPanel
@@ -1551,7 +1559,7 @@ function UI.create(player: Player): Hud
 
 	local function refreshShop()
 		if latestProfile then
-			shopCoins.Text = "💰 " .. latestProfile.Coins
+			shopCoins.Text = tostring(latestProfile.Coins)
 		end
 		for _, cosmetic in Catalog.Cosmetics do
 			local rowBtn = shopRows[cosmetic.id].button

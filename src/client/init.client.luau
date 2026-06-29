@@ -2881,9 +2881,11 @@ do
 		if packs > 0 then
 			openBtn.Text = string.format("🎁 OPEN PACK  (%d)", packs)
 			openBtn.BackgroundColor3 = Color3.fromRGB(90, 200, 120)
+			openBtn.TextColor3 = Color3.fromRGB(12, 18, 14)
 		else
 			openBtn.Text = "No packs — play to earn one!"
 			openBtn.BackgroundColor3 = Color3.fromRGB(50, 54, 70)
+			openBtn.TextColor3 = Color3.fromRGB(210, 216, 230) -- light, so it's readable on the dark bar
 		end
 		hudMenu.attention.cards = packs > 0
 		hudMenu.refresh()
@@ -3186,22 +3188,38 @@ do
 			buy.TextScaled = true
 			buy.Parent = row
 			rounded(buy, 10)
+			-- coin icon shown on the left when a price is displayed
+			local buyCoin = Instance.new("ImageLabel")
+			buyCoin.AnchorPoint = Vector2.new(0, 0.5)
+			buyCoin.Position = UDim2.new(0, 12, 0.5, 0)
+			buyCoin.Size = UDim2.fromOffset(24, 24)
+			buyCoin.BackgroundTransparency = 1
+			buyCoin.ScaleType = Enum.ScaleType.Fit
+			buyCoin.Image = Config.Icons.Coin
+			buyCoin.Visible = false
+			buyCoin.Parent = buy
+			local buyPad = Instance.new("UIPadding")
+			buyPad.PaddingLeft = UDim.new(0, 22)
+			buyPad.Parent = buy
 
 			local function paint()
 				if bought[deal.id] then
 					buy.BackgroundColor3 = Color3.fromRGB(40, 44, 60)
 					buy.TextColor3 = Color3.fromRGB(150, 158, 170)
 					buy.Text = "✓ CLAIMED"
+					buyCoin.Visible = false
 					buy.AutoButtonColor = false
 				elseif myCoins < deal.price then
 					buy.BackgroundColor3 = Color3.fromRGB(54, 40, 44)
 					buy.TextColor3 = Color3.fromRGB(255, 150, 150)
-					buy.Text = string.format("💰 %d", deal.price)
+					buy.Text = tostring(deal.price)
+					buyCoin.Visible = true
 					buy.AutoButtonColor = false
 				else
 					buy.BackgroundColor3 = Color3.fromRGB(60, 170, 90)
 					buy.TextColor3 = Color3.fromRGB(255, 255, 255)
-					buy.Text = string.format("💰 %d", deal.price)
+					buy.Text = tostring(deal.price)
+					buyCoin.Visible = true
 					buy.AutoButtonColor = true
 				end
 			end
