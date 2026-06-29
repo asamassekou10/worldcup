@@ -2916,14 +2916,14 @@ do
 		titleLbl.Text = string.format("MY CARDS  (%d/%d)", distinct, CardBank.count())
 		for id, t in tiles do
 			local n = owned[id] or 0
-			t.frame.BackgroundTransparency = if n > 0 then 0.05 else 0.65
-			t.name.TextTransparency = if n > 0 then 0 else 0.55
+			t.frame.BackgroundTransparency = if n > 0 then 0.05 else 0.4
+			t.name.TextTransparency = if n > 0 then 0 else 0.25
 			if t.face then
-				-- locked cards show a dim silhouette of the face
-				t.face.ImageTransparency = if n > 0 then 0 else 0.7
+				-- locked cards are lightly greyed (still clearly readable); owned are full colour
+				t.face.ImageTransparency = if n > 0 then 0 else 0.12
 				t.face.ImageColor3 = if n > 0
 					then Color3.new(1, 1, 1)
-					else Color3.fromRGB(40, 44, 60)
+					else Color3.fromRGB(150, 156, 172)
 			end
 			t.count.Text = "x" .. tostring(n)
 			t.count.Visible = n > 1
