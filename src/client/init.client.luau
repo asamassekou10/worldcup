@@ -2751,7 +2751,7 @@ do
 	grid.SortOrder = Enum.SortOrder.LayoutOrder
 	grid.Parent = scroll
 
-	type Tile = { frame: Frame, name: TextLabel, count: TextLabel }
+	type Tile = { frame: Frame, name: TextLabel, count: TextLabel, face: ImageLabel? }
 	local tiles: { [string]: Tile } = {}
 	for i, c in CardBank.Cards do
 		local rarity = CardBank.RarityColor[c.rarity] or Color3.fromRGB(150, 150, 150)
@@ -2764,9 +2764,22 @@ do
 		ts.Color = rarity
 		ts.Thickness = 2
 		ts.Parent = tile
+		-- custom face art (e.g. legendary player cards); falls back to the emoji name
+		local face: ImageLabel? = nil
+		local hasImg = c.image ~= nil and c.image ~= ""
+		if hasImg then
+			local img = Instance.new("ImageLabel")
+			img.Size = UDim2.fromScale(0.92, 0.56)
+			img.Position = UDim2.fromScale(0.04, 0.04)
+			img.BackgroundTransparency = 1
+			img.ScaleType = Enum.ScaleType.Fit
+			img.Image = c.image :: string
+			img.Parent = tile
+			face = img
+		end
 		local nm = Instance.new("TextLabel")
-		nm.Size = UDim2.fromScale(0.92, 0.7)
-		nm.Position = UDim2.fromScale(0.04, 0.06)
+		nm.Size = if hasImg then UDim2.fromScale(0.92, 0.2) else UDim2.fromScale(0.92, 0.7)
+		nm.Position = if hasImg then UDim2.fromScale(0.04, 0.58) else UDim2.fromScale(0.04, 0.06)
 		nm.BackgroundTransparency = 1
 		nm.Font = Enum.Font.GothamBold
 		nm.TextScaled = true
@@ -2795,7 +2808,7 @@ do
 		cnt.Text = ""
 		cnt.Visible = false
 		cnt.Parent = tile
-		tiles[c.id] = { frame = tile, name = nm, count = cnt }
+		tiles[c.id] = { frame = tile, name = nm, count = cnt, face = face }
 	end
 
 	local openBtn = Instance.new("TextButton")
@@ -2824,6 +2837,13 @@ do
 			local n = owned[id] or 0
 			t.frame.BackgroundTransparency = if n > 0 then 0.05 else 0.65
 			t.name.TextTransparency = if n > 0 then 0 else 0.55
+			if t.face then
+				-- locked cards show a dim silhouette of the face
+				t.face.ImageTransparency = if n > 0 then 0 else 0.7
+				t.face.ImageColor3 = if n > 0
+					then Color3.new(1, 1, 1)
+					else Color3.fromRGB(40, 44, 60)
+			end
 			t.count.Text = "x" .. tostring(n)
 			t.count.Visible = n > 1
 		end
@@ -2885,9 +2905,22 @@ do
 				cs.Color = rarity
 				cs.Thickness = 3
 				cs.Parent = card
+				local hasImg = c.image ~= nil and c.image ~= ""
+				if hasImg then
+					local img = Instance.new("ImageLabel")
+					img.Size = UDim2.fromScale(0.9, 0.56)
+					img.Position = UDim2.fromScale(0.05, 0.06)
+					img.BackgroundTransparency = 1
+					img.ScaleType = Enum.ScaleType.Fit
+					img.Image = c.image :: string
+					img.ZIndex = 7
+					img.Parent = card
+				end
 				local nm = Instance.new("TextLabel")
-				nm.Size = UDim2.fromScale(0.9, 0.6)
-				nm.Position = UDim2.fromScale(0.05, 0.08)
+				nm.Size = if hasImg then UDim2.fromScale(0.9, 0.16) else UDim2.fromScale(0.9, 0.6)
+				nm.Position = if hasImg
+					then UDim2.fromScale(0.05, 0.62)
+					else UDim2.fromScale(0.05, 0.08)
 				nm.BackgroundTransparency = 1
 				nm.Font = Enum.Font.GothamBold
 				nm.TextScaled = true

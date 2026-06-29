@@ -3,9 +3,14 @@
 -- for cards across four rarities, and complete the set for a big reward. Collection is one of the
 -- strongest retention drivers on Roblox -- a reason to keep playing + come back.
 
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"))
+
 local CardBank = {}
 
-export type Card = { id: string, name: string, rarity: string }
+-- `image` (optional) = a custom card face (rbxassetid). When set, the UI shows the picture; otherwise
+-- it falls back to the emoji in `name`.
+export type Card = { id: string, name: string, rarity: string, image: string? }
 
 CardBank.Cards = {
 	-- Common
@@ -29,10 +34,16 @@ CardBank.Cards = {
 	{ id = "hattrick", name = "🎩 Hat-Trick", rarity = "epic" },
 	{ id = "panenka", name = "🥄 Panenka", rarity = "epic" },
 	{ id = "bicycle", name = "🚲 Bicycle Kick", rarity = "epic" },
-	-- Legendary (icons)
-	{ id = "goat", name = "🐐 The GOAT", rarity = "legendary" },
-	{ id = "maestro", name = "🎼 The Maestro", rarity = "legendary" },
-	{ id = "worldchamp", name = "🏆 World Champion", rarity = "legendary" },
+	-- Legendary (icon players -- the chase cards, with real faces)
+	{ id = "goat", name = "Messi", rarity = "legendary", image = Config.Icons.StickerMessi },
+	{ id = "maestro", name = "Ronaldo", rarity = "legendary", image = Config.Icons.StickerRonaldo },
+	{
+		id = "worldchamp",
+		name = "Mbappé",
+		rarity = "legendary",
+		image = Config.Icons.StickerMbappe,
+	},
+	{ id = "neymar", name = "Neymar", rarity = "legendary", image = Config.Icons.StickerNeymar },
 } :: { Card }
 
 CardBank.RarityOrder = { common = 1, rare = 2, epic = 3, legendary = 4 }
