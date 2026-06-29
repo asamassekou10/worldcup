@@ -198,8 +198,8 @@ local function headerIcon(parent: GuiObject, iconId: string, y: number)
 	end
 	local img = Instance.new("ImageLabel")
 	img.BackgroundTransparency = 1
-	img.Position = UDim2.fromOffset(16, y)
-	img.Size = UDim2.fromOffset(28, 28)
+	img.Position = UDim2.fromOffset(14, y - 4)
+	img.Size = UDim2.fromOffset(36, 36)
 	img.ScaleType = Enum.ScaleType.Fit
 	img.Image = iconId
 	img.Parent = parent

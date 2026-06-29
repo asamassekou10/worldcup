@@ -322,8 +322,8 @@ local function titleIcon(panel: GuiObject, iconId: string?)
 	end
 	local img = Instance.new("ImageLabel")
 	img.BackgroundTransparency = 1
-	img.Position = UDim2.fromScale(0.055, 0.035)
-	img.Size = UDim2.fromScale(0.05, 0.085)
+	img.Position = UDim2.fromScale(0.05, 0.03)
+	img.Size = UDim2.fromScale(0.06, 0.1)
 	img.ScaleType = Enum.ScaleType.Fit
 	img.Image = iconId
 	img.Parent = panel
@@ -582,7 +582,7 @@ function UI.create(player: Player): Hud
 	nationChip.Font = Enum.Font.GothamBold
 	nationChip.TextScaled = true
 	nationChip.TextColor3 = Color3.fromRGB(255, 255, 255)
-	nationChip.Text = "🌍 Pick your country"
+	nationChip.Text = "Pick your country"
 	corner(nationChip, 12)
 	local nationChipStroke = Instance.new("UIStroke")
 	nationChipStroke.Color = ACCENT
@@ -621,16 +621,23 @@ function UI.create(player: Player): Hud
 	statPanel.Parent = lobby
 
 	-- Coins + win/loss record (filled by ProfileUpdate), top-left HUD.
+	local coinStatIcon = Instance.new("ImageLabel")
+	coinStatIcon.Size = UDim2.fromScale(0.036, 0.05)
+	coinStatIcon.Position = UDim2.new(0.02, 0, 0.085, TOP_INSET)
+	coinStatIcon.BackgroundTransparency = 1
+	coinStatIcon.ScaleType = Enum.ScaleType.Fit
+	coinStatIcon.Image = Config.Icons.Coin
+	coinStatIcon.Parent = lobby
 	local lobbyStats = Instance.new("TextLabel")
-	lobbyStats.Size = UDim2.fromScale(0.26, 0.045)
-	lobbyStats.Position = UDim2.new(0.02, 0, 0.088, TOP_INSET) -- clears the (taller) mobile topbar
+	lobbyStats.Size = UDim2.fromScale(0.24, 0.045)
+	lobbyStats.Position = UDim2.new(0.062, 0, 0.088, TOP_INSET) -- after the coin icon; clears mobile topbar
 	lobbyStats.BackgroundTransparency = 1
 	lobbyStats.Font = Enum.Font.GothamBold
 	lobbyStats.TextScaled = true
 	lobbyStats.TextXAlignment = Enum.TextXAlignment.Left
 	lobbyStats.TextColor3 = Color3.fromRGB(240, 200, 40)
 	lobbyStats.TextStrokeTransparency = 0.5
-	lobbyStats.Text = "💰 …"
+	lobbyStats.Text = "…"
 	lobbyStats.Parent = lobby
 
 	local findButton = Instance.new("TextButton")
@@ -709,16 +716,23 @@ function UI.create(player: Player): Hud
 	end)
 
 	-- Level + XP bar (progression), top-left under the coins/record line.
+	local levelStatIcon = Instance.new("ImageLabel")
+	levelStatIcon.Size = UDim2.fromScale(0.036, 0.045)
+	levelStatIcon.Position = UDim2.new(0.02, 0, 0.143, TOP_INSET)
+	levelStatIcon.BackgroundTransparency = 1
+	levelStatIcon.ScaleType = Enum.ScaleType.Fit
+	levelStatIcon.Image = Config.Icons.Level
+	levelStatIcon.Parent = lobby
 	local levelLabel = Instance.new("TextLabel")
-	levelLabel.Size = UDim2.fromScale(0.22, 0.04)
-	levelLabel.Position = UDim2.new(0.02, 0, 0.145, TOP_INSET)
+	levelLabel.Size = UDim2.fromScale(0.2, 0.04)
+	levelLabel.Position = UDim2.new(0.062, 0, 0.145, TOP_INSET)
 	levelLabel.BackgroundTransparency = 1
 	levelLabel.Font = Enum.Font.GothamBlack
 	levelLabel.TextScaled = true
 	levelLabel.TextXAlignment = Enum.TextXAlignment.Left
 	levelLabel.TextColor3 = Color3.fromRGB(120, 210, 255)
 	levelLabel.TextStrokeTransparency = 0.5
-	levelLabel.Text = "⭐ LV 1"
+	levelLabel.Text = "LV 1"
 	levelLabel.Parent = lobby
 
 	local xpBarBg = Instance.new("Frame")
@@ -819,8 +833,8 @@ function UI.create(player: Player): Hud
 	local function renderProgression(data: Types.ProfileData)
 		local _, _, frac = Progression.levelProgress(data.XP)
 		levelLabel.Text = if Progression.isBonusWeekend()
-			then "⭐ LV " .. Progression.levelFromXp(data.XP) .. "   🔥 2× XP"
-			else "⭐ LV " .. Progression.levelFromXp(data.XP)
+			then "LV " .. Progression.levelFromXp(data.XP) .. "   🔥 2× XP"
+			else "LV " .. Progression.levelFromXp(data.XP)
 		xpFill.Size = UDim2.fromScale(frac, 1)
 		streakLabel.Text = string.format("🔥 %d day streak", math.max(data.LoginStreak, 1))
 		for i, quest in Progression.Quests do
@@ -2397,8 +2411,7 @@ function UI.create(player: Player): Hud
 
 	-- Coin packs (developer products).
 	for index, pack in Config.Monetization.CoinPacks do
-		local buy =
-			storeRow(index + 2, "rbxassetid://109933102171049", `{pack.label}  (+{pack.coins})`)
+		local buy = storeRow(index + 2, Config.Icons.Coin, `{pack.label}  (+{pack.coins})`)
 		buy.Activated:Connect(function()
 			Sound.play("Click")
 			if self.onBuyCoins then
@@ -2582,7 +2595,7 @@ function UI.create(player: Player): Hud
 	function self.setProfile(data: Types.ProfileData)
 		latestProfile = data
 		lobbyStats.Text = string.format(
-			"💰 %d   ·   W %d / L %d   ·   ⚽ %d",
+			"%d   ·   W %d / L %d   ·   ⚽ %d",
 			data.Coins,
 			data.Wins,
 			data.Losses,
@@ -2590,8 +2603,8 @@ function UI.create(player: Player): Hud
 		)
 		local nation = Catalog.get(data.Equipped)
 		nationChip.Text = if nation
-			then string.format("🌍 %s %s  ▾", nation.emoji, nation.name)
-			else "🌍 Pick your country"
+			then string.format("%s  %s", nation.emoji, nation.name)
+			else "Pick your country"
 		local nextMatch = WorldCup.nextMatchText(data.Equipped)
 		nextMatchLabel.Text = if nextMatch
 			then nextMatch .. "   ·   📅 fixtures"
