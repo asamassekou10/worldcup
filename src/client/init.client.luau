@@ -205,6 +205,48 @@ local function headerIcon(parent: GuiObject, iconId: string, y: number)
 	img.Parent = parent
 end
 
+-- A centred [coin icon][number] row (auto-sizes to its content). Returns the number TextLabel so the
+-- caller can keep updating it. Used wherever a coin amount is shown standalone.
+local function coinValue(
+	parent: GuiObject,
+	centerX: number,
+	y: number,
+	h: number,
+	color: Color3
+): TextLabel
+	local holder = Instance.new("Frame")
+	holder.AnchorPoint = Vector2.new(0.5, 0)
+	holder.Position = UDim2.new(centerX, 0, 0, y)
+	holder.Size = UDim2.fromOffset(0, h)
+	holder.AutomaticSize = Enum.AutomaticSize.X
+	holder.BackgroundTransparency = 1
+	holder.Parent = parent
+	local list = Instance.new("UIListLayout")
+	list.FillDirection = Enum.FillDirection.Horizontal
+	list.VerticalAlignment = Enum.VerticalAlignment.Center
+	list.SortOrder = Enum.SortOrder.LayoutOrder
+	list.Padding = UDim.new(0, 6)
+	list.Parent = holder
+	local icon = Instance.new("ImageLabel")
+	icon.LayoutOrder = 1
+	icon.Size = UDim2.fromOffset(h, h)
+	icon.BackgroundTransparency = 1
+	icon.ScaleType = Enum.ScaleType.Fit
+	icon.Image = Config.Icons.Coin
+	icon.Parent = holder
+	local num = Instance.new("TextLabel")
+	num.LayoutOrder = 2
+	num.Size = UDim2.fromOffset(0, h)
+	num.AutomaticSize = Enum.AutomaticSize.X
+	num.BackgroundTransparency = 1
+	num.Font = Enum.Font.GothamBlack
+	num.TextSize = math.floor(h * 0.86)
+	num.TextColor3 = color
+	num.Text = "0"
+	num.Parent = holder
+	return num
+end
+
 -- ===== Lobby-HUD visibility: the floating banners (live event, daily objective) are lobby-only
 -- info. They hide whenever the player is in a run OR has a menu/panel open, so they never overlap a
 -- modal. Elements register in lobbyHudEls; panels flip `setMenuOverlay`; runs flip via the events. =
@@ -2613,7 +2655,7 @@ do
 	titleLbl.TextXAlignment = Enum.TextXAlignment.Left
 	titleLbl.Text = "FOOTBALL CLUB"
 	local levelLbl = mk(50, 24, Enum.Font.GothamBold, Color3.fromRGB(210, 218, 230), true)
-	local pendingLbl = mk(86, 56, Enum.Font.GothamBlack, Color3.fromRGB(120, 230, 150), true)
+	local pendingNum = coinValue(panel, 0.5, 88, 48, Color3.fromRGB(120, 230, 150))
 	local capLbl = mk(146, 20, Enum.Font.Gotham, Color3.fromRGB(160, 170, 190), true)
 
 	local claimBtn = Instance.new("TextButton")
@@ -2623,9 +2665,17 @@ do
 	claimBtn.Font = Enum.Font.GothamBlack
 	claimBtn.TextScaled = true
 	claimBtn.TextColor3 = Color3.fromRGB(12, 18, 14)
-	claimBtn.Text = "💰 CLAIM"
+	claimBtn.Text = "CLAIM"
 	claimBtn.Parent = panel
 	rounded(claimBtn, 12)
+	local claimCoin = Instance.new("ImageLabel")
+	claimCoin.AnchorPoint = Vector2.new(0, 0.5)
+	claimCoin.Position = UDim2.new(0, 22, 0.5, 0)
+	claimCoin.Size = UDim2.fromOffset(34, 34)
+	claimCoin.BackgroundTransparency = 1
+	claimCoin.ScaleType = Enum.ScaleType.Fit
+	claimCoin.Image = Config.Icons.Coin
+	claimCoin.Parent = claimBtn
 
 	local upgradeBtn = Instance.new("TextButton")
 	upgradeBtn.Position = UDim2.fromOffset(14, 244)
@@ -2651,10 +2701,10 @@ do
 	end
 	local function refresh()
 		levelLbl.Text =
-			string.format("Level %d  ·  Earning %d 💰/hr", info.level, info.ratePerHr)
-		pendingLbl.Text = "💰 " .. tostring(math.floor(livePending()))
+			string.format("Level %d  ·  Earning %d coins/hr", info.level, info.ratePerHr)
+		pendingNum.Text = tostring(math.floor(livePending()))
 		capLbl.Text = string.format("banked at %d max — claim before it fills!", info.cap)
-		upgradeBtn.Text = string.format("⬆️ Upgrade earn rate — %d 💰", info.upgradeCost)
+		upgradeBtn.Text = string.format("⬆️ Upgrade earn rate — %d coins", info.upgradeCost)
 	end
 
 	Net.getEvent(Net.Events.ClubState).OnClientEvent:Connect(function(payload: unknown)
@@ -3456,18 +3506,47 @@ do
 			ptsLbl.Parent = frame
 
 			if prize then
-				local prizeLbl = Instance.new("TextLabel")
-				prizeLbl.AnchorPoint = Vector2.new(1, 0.5)
-				prizeLbl.Position = UDim2.new(1, -8, 0.5, 0)
-				prizeLbl.Size = UDim2.fromOffset(98, 34)
-				prizeLbl.BackgroundColor3 = Color3.fromRGB(40, 44, 60)
-				prizeLbl.Font = Enum.Font.GothamBlack
-				prizeLbl.TextScaled = true
-				prizeLbl.TextColor3 = Color3.fromRGB(140, 230, 170)
-				local packTxt = if prize.packs > 0 then "+" .. prize.packs .. "🃏" else ""
-				prizeLbl.Text = string.format("💰%d %s", prize.coins, packTxt)
-				prizeLbl.Parent = frame
-				rounded(prizeLbl, 6)
+				local chip = Instance.new("Frame")
+				chip.AnchorPoint = Vector2.new(1, 0.5)
+				chip.Position = UDim2.new(1, -8, 0.5, 0)
+				chip.Size = UDim2.fromOffset(if prize.packs > 0 then 124 else 92, 34)
+				chip.BackgroundColor3 = Color3.fromRGB(40, 44, 60)
+				chip.Parent = frame
+				rounded(chip, 6)
+				local clist = Instance.new("UIListLayout")
+				clist.FillDirection = Enum.FillDirection.Horizontal
+				clist.HorizontalAlignment = Enum.HorizontalAlignment.Center
+				clist.VerticalAlignment = Enum.VerticalAlignment.Center
+				clist.SortOrder = Enum.SortOrder.LayoutOrder
+				clist.Padding = UDim.new(0, 3)
+				clist.Parent = chip
+				local function chipIcon(order: number, image: string, sz: number)
+					local i = Instance.new("ImageLabel")
+					i.LayoutOrder = order
+					i.Size = UDim2.fromOffset(sz, sz)
+					i.BackgroundTransparency = 1
+					i.ScaleType = Enum.ScaleType.Fit
+					i.Image = image
+					i.Parent = chip
+				end
+				local function chipText(order: number, text: string, color: Color3)
+					local t = Instance.new("TextLabel")
+					t.LayoutOrder = order
+					t.AutomaticSize = Enum.AutomaticSize.X
+					t.Size = UDim2.fromOffset(0, 34)
+					t.BackgroundTransparency = 1
+					t.Font = Enum.Font.GothamBlack
+					t.TextSize = 19
+					t.TextColor3 = color
+					t.Text = text
+					t.Parent = chip
+				end
+				chipIcon(1, Config.Icons.Coin, 22)
+				chipText(2, tostring(prize.coins), Color3.fromRGB(140, 230, 170))
+				if prize.packs > 0 then
+					chipText(3, "+" .. prize.packs, Color3.fromRGB(220, 226, 236))
+					chipIcon(4, Config.Icons.CardPack, 20)
+				end
 			end
 		end
 	end
