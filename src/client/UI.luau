@@ -1440,7 +1440,7 @@ function UI.create(player: Player): Hud
 	shopPanel.Parent = screen
 
 	local shopTitle = Instance.new("TextLabel")
-	shopTitle.Size = UDim2.fromScale(0.55, 0.09)
+	shopTitle.Size = UDim2.fromScale(0.46, 0.09)
 	shopTitle.Position = UDim2.fromScale(0.115, 0.04)
 	shopTitle.BackgroundTransparency = 1
 	shopTitle.Font = Enum.Font.GothamBlack
@@ -1453,14 +1453,14 @@ function UI.create(player: Player): Hud
 
 	local shopCoinIcon = Instance.new("ImageLabel")
 	shopCoinIcon.Size = UDim2.fromScale(0.035, 0.07)
-	shopCoinIcon.Position = UDim2.fromScale(0.6, 0.05)
+	shopCoinIcon.Position = UDim2.fromScale(0.62, 0.05)
 	shopCoinIcon.BackgroundTransparency = 1
 	shopCoinIcon.ScaleType = Enum.ScaleType.Fit
 	shopCoinIcon.Image = Config.Icons.Coin
 	shopCoinIcon.Parent = shopPanel
 	local shopCoins = Instance.new("TextLabel")
-	shopCoins.Size = UDim2.fromScale(0.14, 0.07)
-	shopCoins.Position = UDim2.fromScale(0.645, 0.05)
+	shopCoins.Size = UDim2.fromScale(0.11, 0.07)
+	shopCoins.Position = UDim2.fromScale(0.662, 0.05)
 	shopCoins.BackgroundTransparency = 1
 	shopCoins.Font = Enum.Font.GothamBold
 	shopCoins.TextScaled = true
